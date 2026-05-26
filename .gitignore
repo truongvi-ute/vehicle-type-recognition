@@ -1,0 +1,18 @@
+# Dữ liệu ảnh (File quá nặng, bạn bè tự tải file zip dataset về sau)
+data/
+
+# Trọng số mô hình (File .pth vượt quá 100MB của GitHub)
+models/
+
+# Cache của Python
+__pycache__/
+*.pyc
+
+# Thư mục môi trường ảo (nếu bạn có dùng)
+venv/
+.venv/
+env/
+
+# Cấu hình IDE
+.vscode/
+.idea/
