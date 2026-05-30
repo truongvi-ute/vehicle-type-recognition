@@ -5,4 +5,5 @@ Dự án ứng dụng CNN (ResNet-50) và các bộ lọc không gian để phâ
 ## Hướng dẫn cài đặt
 1. Cài đặt thư viện: `pip install -r requirements.txt`
 2. link dataset: https://drive.google.com/file/d/1pNmm9RjcdTJVRl8_uv-Cs5-CahkROKHs/view?usp=sharing
-3. Chạy giao diện: `streamlit run app.py`
+3. chạy tiền xử lí: python data_prep.py
+4. Chạy giao diện: `streamlit run app.py`
