@@ -1,756 +1,606 @@
 """
 src/model.py
 ============
-Khởi tạo và quản lý 3 kiến trúc mô hình Transfer Learning cho đồ án
+Quản lý kiến trúc mô hình cho đồ án
 Nhận dạng Phương tiện Giao thông (Vehicle Type Recognition).
 
-Mô hình hỗ trợ:
-  ┌──────────────────┬──────────────────────────────────┬────────────┐
-  │ Tên              │ Kiến trúc nổi bật                │ Vai trò    │
-  ├──────────────────┼──────────────────────────────────┼────────────┤
-  │ resnet50         │ Skip Connections (Residual Block) │ Baseline   │
-  │ mobilenet_v3     │ Depthwise Separable Conv, nhẹ    │ Thực tế    │
-  │ efficientnet_b0  │ Compound Scaling đa chiều         │ Cân bằng   │
-  └──────────────────┴──────────────────────────────────┴────────────┘
+Hỗ trợ 2 kiến trúc pre-trained:
+  - ResNet-50  : CNN cổ điển với Skip Connections, ~24.5M tham số.
+  - ViT-B/16   : Vision Transformer, ~86M tham số, Self-Attention toàn cục.
 
-Gồm 4 phần chính:
-  1. Model Builder   — thay đổi classification head, chiến lược freeze
-  2. Freeze Strategy — kiểm soát các tầng được huấn luyện
-  3. Model Info      — đếm tham số, tóm tắt kiến trúc
-  4. Save / Load     — lưu và khôi phục checkpoint đầy đủ
+Chiến lược Fine-tuning đa giai đoạn:
+  Phase 1 — "head_only" : Chỉ train Classification Head (Head mới toanh).
+  Phase 2 — "partial"   : Mở thêm 1/3 block cuối Backbone (đặc trưng xe cộ).
+  Phase 3 — "full"      : Mở toàn bộ (khi cần tinh chỉnh sâu nhất).
 
 Thư viện cần thiết:
-  pip install torch torchvision
+    pip install torch torchvision
+
+Cách dùng:
+    from model import build_model, switch_strategy, model_summary
+
+    model = build_model("resnet50", num_classes=10)
+    switch_strategy(model, "head_only")
+    model_summary(model)
 """
 
+from __future__ import annotations
+
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+import sys
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import torch
 import torch.nn as nn
 from torchvision import models
 from torchvision.models import (
     ResNet50_Weights,
-    MobileNet_V3_Small_Weights,
-    EfficientNet_B0_Weights,
+    ViT_B_16_Weights,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HẰNG SỐ
 # ─────────────────────────────────────────────────────────────────────────────
 
-SUPPORTED_MODELS = ["resnet50", "mobilenet_v3", "efficientnet_b0"]
+#: Tên các kiến trúc được hỗ trợ — dùng để kiểm tra đầu vào.
+SUPPORTED_MODELS: List[str] = ["resnet50", "vit_base_patch16_224"]
 
-# Tên file checkpoint mặc định cho từng mô hình
-CHECKPOINT_NAMES = {
-    "resnet50":         "resnet50_best.pth",
-    "mobilenet_v3":     "mobilenet_v3_best.pth",
-    "efficientnet_b0":  "efficientnet_b0_best.pth",
-}
+#: Chiến lược freeze/unfreeze hợp lệ.
+SUPPORTED_STRATEGIES: List[str] = ["head_only", "partial", "full"]
 
-# Dropout rate cho classification head
-DEFAULT_DROPOUT = 0.4
+#: Số lượng encoder block của ViT-B/16 (cố định theo kiến trúc gốc).
+VIT_NUM_ENCODER_LAYERS: int = 12
 
+#: 1/3 số block ViT sẽ được mở khóa ở chiến lược "partial".
+VIT_PARTIAL_OPEN_LAYERS: int = 4   # floor(12 / 3) = 4 block cuối
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PHẦN 1 – MODEL BUILDER
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _build_classifier_head(
-    in_features: int,
-    num_classes: int,
-    dropout: float = DEFAULT_DROPOUT,
-) -> nn.Sequential:
-    """
-    Tạo classification head tuỳ chỉnh:
-        Linear(in_features → 512) → BN → ReLU → Dropout → Linear(512 → num_classes)
-
-    Lý do thêm tầng ẩn 512:
-      Tăng khả năng học đặc trưng trung gian đặc thù cho dataset phương tiện,
-      vượt trội hơn so với chỉ dùng 1 Linear layer đơn giản.
-    Lý do dùng BatchNorm trước Dropout:
-      Ổn định phân phối đặc trưng từ backbone, giúp Dropout hiệu quả hơn.
-    """
-    return nn.Sequential(
-        nn.Linear(in_features, 512),
-        nn.BatchNorm1d(512),
-        nn.ReLU(inplace=True),
-        nn.Dropout(p=dropout),
-        nn.Linear(512, num_classes),
-    )
-
-
-def build_resnet50(
-    num_classes: int,
-    pretrained: bool = True,
-    dropout: float = DEFAULT_DROPOUT,
-) -> nn.Module:
-    """
-    ResNet-50 với classification head tuỳ chỉnh.
-
-    Kiến trúc:
-      [Conv1] → [Layer1–4 (Residual Blocks)] → [AdaptiveAvgPool] → [FC Head]
-      Backbone output: 2048 features
-      Head: 2048 → 512 → num_classes
-
-    Skip Connections giải quyết vấn đề gradient vanishing,
-    cho phép huấn luyện mạng rất sâu (50 tầng) hiệu quả.
-
-    Args:
-        num_classes : Số lớp phân loại (5-7 lớp phương tiện)
-        pretrained  : True = dùng trọng số ImageNet, False = khởi tạo ngẫu nhiên
-        dropout     : Tỷ lệ dropout trong classification head
-
-    Returns:
-        nn.Module đã thay thế fc layer
-    """
-    weights = ResNet50_Weights.DEFAULT if pretrained else None
-    model   = models.resnet50(weights=weights)
-
-    in_features  = model.fc.in_features        # 2048
-    model.fc     = _build_classifier_head(in_features, num_classes, dropout)
-
-    model._model_name   = "resnet50"
-    model._num_classes  = num_classes
-    model._in_features  = in_features
-    return model
-
-
-def build_mobilenet_v3(
-    num_classes: int,
-    pretrained: bool = True,
-    dropout: float = DEFAULT_DROPOUT,
-) -> nn.Module:
-    """
-    MobileNet-V3-Small với classification head tuỳ chỉnh.
-
-    Kiến trúc:
-      [Inverted Residual Blocks + SE] → [AdaptiveAvgPool] → [FC Head]
-      Backbone output: 576 features
-      Head: 576 → 512 → num_classes
-
-    Depthwise Separable Convolution giảm ~8-9x FLOPs so với Conv thông thường.
-    Squeeze-and-Excitation (SE) tăng khả năng tập trung vào kênh quan trọng.
-
-    Lý do dùng Small thay vì Large:
-      Dataset 7.5-14K ảnh không đủ lớn để phân biệt rõ lợi ích của Large.
-      Small nhanh hơn ~2x, phù hợp thực nghiệm nhanh và so sánh.
-
-    Args:
-        num_classes : Số lớp phân loại
-        pretrained  : True = dùng trọng số ImageNet
-        dropout     : Tỷ lệ dropout
-
-    Returns:
-        nn.Module đã thay thế classifier
-    """
-    weights = MobileNet_V3_Small_Weights.DEFAULT if pretrained else None
-    model   = models.mobilenet_v3_small(weights=weights)
-
-    # MobileNetV3: model.classifier = Sequential([Linear, Hardswish, Dropout, Linear])
-    in_features       = model.classifier[0].in_features   # 576
-    model.classifier  = _build_classifier_head(in_features, num_classes, dropout)
-
-    model._model_name  = "mobilenet_v3"
-    model._num_classes = num_classes
-    model._in_features = in_features
-    return model
-
-
-def build_efficientnet_b0(
-    num_classes: int,
-    pretrained: bool = True,
-    dropout: float = DEFAULT_DROPOUT,
-) -> nn.Module:
-    """
-    EfficientNet-B0 với classification head tuỳ chỉnh.
-
-    Kiến trúc:
-      [MBConv Blocks + SE] → [AdaptiveAvgPool] → [FC Head]
-      Backbone output: 1280 features
-      Head: 1280 → 512 → num_classes
-
-    Compound Scaling: mở rộng đồng thời width, depth, resolution theo hệ số φ.
-    B0 là mô hình cơ sở (baseline) của dòng EfficientNet.
-
-    Args:
-        num_classes : Số lớp phân loại
-        pretrained  : True = dùng trọng số ImageNet
-        dropout     : Tỷ lệ dropout
-
-    Returns:
-        nn.Module đã thay thế classifier
-    """
-    weights = EfficientNet_B0_Weights.DEFAULT if pretrained else None
-    model   = models.efficientnet_b0(weights=weights)
-
-    # EfficientNet: model.classifier = Sequential([Dropout, Linear])
-    in_features      = model.classifier[1].in_features    # 1280
-    model.classifier = _build_classifier_head(in_features, num_classes, dropout)
-
-    model._model_name  = "efficientnet_b0"
-    model._num_classes = num_classes
-    model._in_features = in_features
-    return model
-
+#: Prefix tên key của từng encoder block trong ViT (từ torchvision).
+VIT_ENCODER_LAYER_PREFIX: str = "encoder_layer_"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FACTORY FUNCTION — điểm truy cập duy nhất
+# PHẦN 1 — XÂY DỰNG MÔ HÌNH
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_model(
-    model_name: str,
-    num_classes: int,
-    pretrained: bool = True,
-    dropout: float = DEFAULT_DROPOUT,
-    freeze_strategy: str = "head_only",
-    device: Optional[torch.device] = None,
+    model_name:  str,
+    num_classes: int  = 10,
+    pretrained:  bool = True,
+    device:      Optional[torch.device] = None,
 ) -> nn.Module:
     """
-    Factory function: tạo mô hình theo tên, áp dụng freeze strategy, chuyển lên device.
+    Khởi tạo mô hình Deep Learning với Classification Head tùy chỉnh.
+
+    Quy trình:
+        1. Nạp kiến trúc + trọng số ImageNet pre-trained (nếu pretrained=True).
+        2. Thay thế Classification Head bằng Linear layer khớp num_classes.
+        3. Gắn metadata (._arch, ._head_name) vào đối tượng model để
+           switch_strategy() nhận diện kiến trúc.
+        4. Chuyển model lên device đã chỉ định.
+
+    Head replacement:
+        - ResNet-50 : ``model.fc``           Linear(2048  → num_classes)
+        - ViT-B/16  : ``model.heads.head``   Linear(768   → num_classes)
 
     Args:
-        model_name      : 'resnet50' | 'mobilenet_v3' | 'efficientnet_b0'
-        num_classes     : Số lớp phân loại đầu ra
-        pretrained      : Dùng trọng số ImageNet pre-trained
-        dropout         : Tỷ lệ dropout trong head
-        freeze_strategy : Chiến lược đóng băng tầng (xem PHẦN 2)
-                          'head_only'   — chỉ train classification head (Phase 1)
-                          'partial'     — train head + 1/3 cuối backbone (Phase 2)
-                          'full'        — train toàn bộ mạng (Phase 3 / fine-tune)
-                          'none'        — không train gì (chỉ inference)
-        device          : torch.device (mặc định: tự phát hiện CPU/CUDA)
+        model_name  : Tên kiến trúc. Phải thuộc SUPPORTED_MODELS.
+        num_classes : Số lớp đầu ra (mặc định = 10 cho Vehicle-10).
+        pretrained  : True → nạp ImageNet weights; False → random init.
+        device      : Device để chạy mô hình. None → tự động chọn CUDA / CPU.
 
     Returns:
-        nn.Module đã được cấu hình và chuyển lên device
+        nn.Module đã sẵn sàng dùng (Classification Head = Linear mới,
+        toàn bộ backbone vẫn đang freeze theo mặc định của torchvision).
 
-    Ví dụ:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model  = build_model('resnet50', num_classes=5, device=device)
+    Raises:
+        ValueError: Nếu model_name không thuộc SUPPORTED_MODELS.
+
+    Example:
+        >>> model = build_model("resnet50", num_classes=10)
+        >>> model = build_model("vit_base_patch16_224", pretrained=False)
     """
     if model_name not in SUPPORTED_MODELS:
         raise ValueError(
-            f"model_name '{model_name}' không hợp lệ.\n"
-            f"Hỗ trợ: {SUPPORTED_MODELS}"
+            f"model_name='{model_name}' không được hỗ trợ.\n"
+            f"Chọn một trong: {SUPPORTED_MODELS}"
         )
 
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # ── Xây dựng mô hình ──────────────────────────────────────────────────
-    builders = {
-        "resnet50":        build_resnet50,
-        "mobilenet_v3":    build_mobilenet_v3,
-        "efficientnet_b0": build_efficientnet_b0,
-    }
-    model = builders[model_name](num_classes, pretrained, dropout)
+    # ── Nạp kiến trúc + pretrained weights ──────────────────────────────
+    weights_arg = "DEFAULT" if pretrained else None
 
-    # ── Áp dụng freeze strategy ───────────────────────────────────────────
-    apply_freeze_strategy(model, freeze_strategy)
+    if model_name == "resnet50":
+        weights = ResNet50_Weights.DEFAULT if pretrained else None
+        model: nn.Module = models.resnet50(weights=weights)
 
-    # ── Chuyển lên device ─────────────────────────────────────────────────
+        # Thay thế FC head: Linear(2048, 1000) → Linear(2048, num_classes)
+        in_features = model.fc.in_features          # 2048
+        model.fc    = nn.Linear(in_features, num_classes)
+
+        # Metadata cho switch_strategy()
+        model._arch      = "resnet50"               # type: ignore[attr-defined]
+        model._head_name = "fc"                     # type: ignore[attr-defined]
+
+    elif model_name == "vit_base_patch16_224":
+        weights = ViT_B_16_Weights.DEFAULT if pretrained else None
+        model = models.vit_b_16(weights=weights)
+
+        # Thay thế head: Linear(768, 1000) → Linear(768, num_classes)
+        in_features       = model.heads.head.in_features   # 768
+        model.heads.head  = nn.Linear(in_features, num_classes)
+
+        # Metadata cho switch_strategy()
+        model._arch      = "vit_base_patch16_224"   # type: ignore[attr-defined]
+        model._head_name = "heads"                  # type: ignore[attr-defined]
+
     model = model.to(device)
-    model._device = device
-
-    # ── In tóm tắt ────────────────────────────────────────────────────────
-    total, trainable = count_parameters(model)
-    frozen = total - trainable
-    print(f"\n{'─'*50}")
-    print(f"  Mô hình      : {model_name}")
-    print(f"  Số lớp       : {num_classes}")
-    print(f"  Pre-trained  : {pretrained}")
-    print(f"  Freeze       : {freeze_strategy}")
-    print(f"  Tổng tham số : {total:,}")
-    print(f"  Trainable    : {trainable:,}  ({trainable/total*100:.1f}%)")
-    print(f"  Frozen       : {frozen:,}  ({frozen/total*100:.1f}%)")
-    print(f"  Device       : {device}")
-    print(f"{'─'*50}\n")
-
     return model
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHẦN 2 – FREEZE STRATEGY
+# PHẦN 2 — CHIẾN LƯỢC FREEZE / UNFREEZE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _get_backbone_layers(model: nn.Module) -> List[nn.Module]:
-    """
-    Trả về danh sách các module backbone (không kể classification head)
-    theo thứ tự từ đầu vào đến đầu ra.
-    """
-    name = getattr(model, "_model_name", "unknown")
-
-    if name == "resnet50":
-        # ResNet: features = conv1, bn1, relu, maxpool, layer1-4, avgpool
-        return [
-            model.conv1, model.bn1, model.relu, model.maxpool,
-            model.layer1, model.layer2, model.layer3, model.layer4,
-        ]
-    elif name == "mobilenet_v3":
-        # MobileNetV3: model.features chứa tất cả block backbone
-        return list(model.features.children())
-    elif name == "efficientnet_b0":
-        # EfficientNet: model.features chứa tất cả block backbone
-        return list(model.features.children())
-    else:
-        # Fallback: lấy tất cả trừ classifier / fc
-        head_names = {"fc", "classifier"}
-        return [m for n, m in model.named_children() if n not in head_names]
+def _freeze_all(model: nn.Module) -> None:
+    """Đóng băng toàn bộ tham số (requires_grad = False)."""
+    for param in model.parameters():
+        param.requires_grad = False
 
 
-def _get_head(model: nn.Module) -> nn.Module:
-    """Trả về classification head của mô hình."""
-    name = getattr(model, "_model_name", "unknown")
-    if name == "resnet50":
-        return model.fc
-    else:  # mobilenet_v3, efficientnet_b0
-        return model.classifier
-
-
-def _set_requires_grad(module: nn.Module, requires_grad: bool) -> None:
-    """Bật/tắt gradient cho toàn bộ tham số của module."""
+def _unfreeze_module(module: nn.Module) -> None:
+    """Mở khóa toàn bộ tham số của 1 submodule."""
     for param in module.parameters():
-        param.requires_grad = requires_grad
+        param.requires_grad = True
 
 
-def apply_freeze_strategy(model: nn.Module, strategy: str) -> None:
+def switch_strategy(
+    model:    nn.Module,
+    strategy: Literal["head_only", "partial", "full"],
+) -> None:
     """
-    Áp dụng chiến lược đóng băng (freeze) tầng mạng.
+    Điều chỉnh trạng thái đóng băng / mở khóa tham số của mô hình để
+    phục vụ chiến lược Fine-tuning đa giai đoạn.
 
-    Quy trình huấn luyện 3 Phase được khuyến nghị:
-    ┌──────────┬──────────────┬───────────────────────────────────────┐
-    │ Phase    │ Strategy     │ Mục đích                              │
-    ├──────────┼──────────────┼───────────────────────────────────────┤
-    │ Phase 1  │ head_only    │ Warm-up: train nhanh head mới,        │
-    │ (5-10ep) │              │ backbone giữ nguyên ImageNet weights. │
-    ├──────────┼──────────────┼───────────────────────────────────────┤
-    │ Phase 2  │ partial      │ Fine-tune: mở dần 1/3 cuối backbone   │
-    │ (10-20ep)│              │ để học đặc trưng đặc thù phương tiện. │
-    ├──────────┼──────────────┼───────────────────────────────────────┤
-    │ Phase 3  │ full         │ Fine-tune toàn bộ với LR rất nhỏ      │
-    │ (5-10ep) │              │ để tinh chỉnh sâu (optional).         │
-    └──────────┴──────────────┴───────────────────────────────────────┘
+    Chiến lược:
+        "head_only"
+            Đóng băng toàn bộ Backbone.
+            CHỈ mở Classification Head.
+            → Dùng ở Phase 1: Head học nhanh, backbone không bị phá vỡ.
+
+        "partial"
+            Đóng băng phần lớn Backbone.
+            Mở Classification Head + 1/3 block cuối cùng của Backbone.
+                ResNet-50  : Mở ``layer4`` + ``avgpool`` + ``fc``
+                ViT-B/16   : Mở 4 block encoder cuối + LayerNorm + ``heads``
+            → Dùng ở Phase 2: Tinh chỉnh đặc trưng cấp cao của xe cộ.
+
+        "full"
+            Mở khóa toàn bộ mạng (requires_grad = True).
+            → Dùng khi muốn Fine-tune sâu nhất (cần LR rất nhỏ).
 
     Args:
-        model    : nn.Module (đã được build_model tạo)
-        strategy : 'head_only' | 'partial' | 'full' | 'none'
+        model    : Mô hình khởi tạo bởi build_model().
+        strategy : Một trong "head_only", "partial", "full".
+
+    Raises:
+        ValueError : Nếu strategy không hợp lệ.
+        AttributeError : Nếu model thiếu thuộc tính ``._arch``
+                         (không được tạo bởi build_model()).
+
+    Example:
+        >>> model = build_model("resnet50")
+        >>> switch_strategy(model, "head_only")   # Phase 1
+        >>> switch_strategy(model, "partial")     # Phase 2
     """
-    valid_strategies = {"head_only", "partial", "full", "none"}
-    if strategy not in valid_strategies:
+    if strategy not in SUPPORTED_STRATEGIES:
         raise ValueError(
-            f"freeze_strategy '{strategy}' không hợp lệ.\n"
-            f"Hỗ trợ: {sorted(valid_strategies)}"
+            f"strategy='{strategy}' không hợp lệ.\n"
+            f"Chọn một trong: {SUPPORTED_STRATEGIES}"
         )
 
-    backbone_layers = _get_backbone_layers(model)
-    head            = _get_head(model)
-    n_layers        = len(backbone_layers)
+    arch = getattr(model, "_arch", None)
+    if arch is None:
+        raise AttributeError(
+            "model thiếu thuộc tính ._arch. "
+            "Hãy khởi tạo mô hình bằng build_model()."
+        )
 
-    if strategy == "none":
-        # Đóng băng tất cả — chỉ dùng inference
-        _set_requires_grad(model, False)
+    # ── "full": mở khóa tất cả ───────────────────────────────────────────
+    if strategy == "full":
+        for param in model.parameters():
+            param.requires_grad = True
+        return
 
-    elif strategy == "head_only":
-        # Đóng băng backbone, train head
-        _set_requires_grad(model, False)
-        _set_requires_grad(head, True)
+    # ── Bước chung: đóng băng toàn bộ trước ─────────────────────────────
+    _freeze_all(model)
 
-    elif strategy == "partial":
-        # Đóng băng 2/3 đầu backbone, mở 1/3 cuối + head
-        _set_requires_grad(model, False)
-        cutoff = n_layers * 2 // 3          # Chỉ mở từ layer này về sau
-        for layer in backbone_layers[cutoff:]:
-            _set_requires_grad(layer, True)
-        _set_requires_grad(head, True)
+    # ── ResNet-50 ─────────────────────────────────────────────────────────
+    if arch == "resnet50":
+        # Luôn mở Head
+        _unfreeze_module(model.fc)
 
-    elif strategy == "full":
-        # Mở toàn bộ
-        _set_requires_grad(model, True)
+        if strategy == "partial":
+            # Mở 1/3 cuối backbone:
+            #   ResNet-50 có 4 nhóm layer: layer1, layer2, layer3, layer4
+            #   1/3 ≈ layer4 (Block cuối cùng, học đặc trưng cao cấp nhất)
+            _unfreeze_module(model.layer4)   # 3 Bottleneck blocks
+            _unfreeze_module(model.avgpool)  # Global Avg Pool không có params
+            # model.fc đã được mở ở trên
 
+    # ── Vision Transformer (ViT-B/16) ────────────────────────────────────
+    elif arch == "vit_base_patch16_224":
+        # Luôn mở Classification Head
+        _unfreeze_module(model.heads)
 
-def switch_strategy(model: nn.Module, new_strategy: str) -> None:
-    """
-    Chuyển chiến lược freeze trong khi đang huấn luyện (không cần tạo lại model).
+        if strategy == "partial":
+            # ViT-B/16 có 12 encoder blocks.
+            # torchvision đặt key dạng: "encoder_layer_0" ... "encoder_layer_11"
+            # Sequential.__getitem__ chỉ nhận int index, phải dùng ._modules
+            # để tra cứu theo tên string.
+            n_layers  = len(model.encoder.layers)
+            n_to_open = min(VIT_PARTIAL_OPEN_LAYERS, n_layers)
+            start_idx = n_layers - n_to_open
 
-    Ví dụ workflow:
-        model = build_model('resnet50', num_classes=5, freeze_strategy='head_only')
-        # ... train 10 epochs ...
-        switch_strategy(model, 'partial')
-        # ... train thêm 10 epochs với LR nhỏ hơn ...
-        switch_strategy(model, 'full')
-    """
-    apply_freeze_strategy(model, new_strategy)
-    total, trainable = count_parameters(model)
-    print(f"  [switch_strategy] → '{new_strategy}' | "
-          f"Trainable: {trainable:,}/{total:,} "
-          f"({trainable/total*100:.1f}%)")
+            for idx in range(start_idx, n_layers):
+                block_key    = f"{VIT_ENCODER_LAYER_PREFIX}{idx}"
+                block_module = model.encoder.layers._modules.get(block_key)
+                if block_module is not None:
+                    _unfreeze_module(block_module)
+
+            # Mở thêm Layer Norm cuối encoder (encoder.ln)
+            _unfreeze_module(model.encoder.ln)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHẦN 3 – MODEL INFO
+# PHẦN 3 — THỐNG KÊ THAM SỐ
 # ─────────────────────────────────────────────────────────────────────────────
 
-def count_parameters(model: nn.Module) -> Tuple[int, int]:
+def model_summary(model: nn.Module, print_layers: bool = False) -> Dict[str, int]:
     """
-    Đếm tổng số tham số và số tham số được train.
+    In ra và trả về thống kê số lượng tham số của mô hình.
+
+    Metrics xuất ra:
+        - Total params     : Tổng số tham số (trainable + frozen).
+        - Trainable params : Số tham số đang được cập nhật (requires_grad=True).
+        - Frozen params    : Số tham số bị đóng băng (requires_grad=False).
+        - Trainable %      : Tỷ lệ tham số được train.
+
+    Args:
+        model       : Mô hình PyTorch bất kỳ.
+        print_layers: True → in thêm từng layer với trạng thái requires_grad.
 
     Returns:
-        (total_params, trainable_params)
+        Dict với các key: "total", "trainable", "frozen".
+
+    Example:
+        >>> stats = model_summary(model)
+        >>> print(stats["trainable"])
+    """
+    total_params     = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    frozen_params    = total_params - trainable_params
+    pct              = (trainable_params / max(total_params, 1)) * 100
+
+    arch  = getattr(model, "_arch", type(model).__name__)
+    strat = getattr(model, "_current_strategy", "unknown")
+
+    print("─" * 55)
+    print(f" Model Summary  :  {arch}")
+    print(f" Strategy       :  {strat}")
+    print("─" * 55)
+    print(f" Total params   :  {total_params:>14,}")
+    print(f" Trainable      :  {trainable_params:>14,}  ({pct:.1f} %)")
+    print(f" Frozen         :  {frozen_params:>14,}  ({100-pct:.1f} %)")
+    print("─" * 55)
+
+    if print_layers:
+        print("\n Layer-level requires_grad:")
+        for name, module in model.named_children():
+            n_params     = sum(p.numel() for p in module.parameters())
+            n_trainable  = sum(p.numel() for p in module.parameters()
+                               if p.requires_grad)
+            status = "OPEN  " if n_trainable > 0 else "FROZEN"
+            print(f"   [{status}] {name:<25} "
+                  f"{n_params:>10,} params  ({n_trainable:>10,} trainable)")
+        print()
+
+    return {
+        "total":     total_params,
+        "trainable": trainable_params,
+        "frozen":    frozen_params,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHẦN 4 — LƯU & NẠP CHECKPOINT
+# ─────────────────────────────────────────────────────────────────────────────
+
+def save_checkpoint(
+    model:          nn.Module,
+    optimizer:      torch.optim.Optimizer,
+    epoch:          int,
+    metrics:        Dict[str, float],
+    checkpoint_dir: str,
+    is_best:        bool = False,
+) -> str:
+    """
+    Lưu trạng thái huấn luyện (state_dict, optimizer, metrics) xuống disk.
+
+    Tên file checkpoint:
+        <arch>_epoch<N>_<timestamp>.pth   — checkpoint thường xuyên
+        <arch>_best.pth                   — checkpoint tốt nhất (is_best=True)
+
+    Nội dung checkpoint (dict):
+        {
+            "epoch"      : <int>,
+            "arch"       : <str>,
+            "state_dict" : model.state_dict(),
+            "optimizer"  : optimizer.state_dict(),
+            "metrics"    : {"val_loss": ..., "val_acc": ...},
+            "saved_at"   : <ISO timestamp>,
+        }
+
+    Args:
+        model          : Mô hình cần lưu.
+        optimizer      : Optimizer hiện tại.
+        epoch          : Epoch hiện tại.
+        metrics        : Dict các chỉ số (vd: {"val_loss": 0.12, "val_acc": 0.95}).
+        checkpoint_dir : Thư mục lưu checkpoint.
+        is_best        : True → lưu thêm file ``<arch>_best.pth``.
+
+    Returns:
+        Đường dẫn tuyệt đối của file checkpoint vừa lưu.
+    """
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    arch      = getattr(model, "_arch", "model")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    payload = {
+        "epoch":      epoch,
+        "arch":       arch,
+        "state_dict": model.state_dict(),
+        "optimizer":  optimizer.state_dict(),
+        "metrics":    metrics,
+        "saved_at":   datetime.now().isoformat(),
+    }
+
+    # ── Lưu checkpoint thường ────────────────────────────────────────────
+    ckpt_name = f"{arch}_epoch{epoch:03d}_{timestamp}.pth"
+    ckpt_path = os.path.join(checkpoint_dir, ckpt_name)
+    torch.save(payload, ckpt_path)
+
+    # ── Lưu file "_best" nếu là checkpoint tốt nhất ──────────────────────
+    if is_best:
+        best_path = os.path.join(checkpoint_dir, f"{arch}_best.pth")
+        torch.save(payload, best_path)
+
+    return ckpt_path
+
+
+def load_checkpoint(
+    checkpoint_path: str,
+    model:           nn.Module,
+    optimizer:       Optional[torch.optim.Optimizer] = None,
+    device:          Optional[torch.device] = None,
+) -> Dict[str, Any]:
+    """
+    Nạp checkpoint để tiếp tục huấn luyện (resume training).
+
+    Nạp state_dict vào model và optimizer (nếu truyền vào).
+    Trả về toàn bộ payload để lấy epoch/metrics.
+
+    Args:
+        checkpoint_path : Đường dẫn file .pth.
+        model           : Mô hình cần restore weights.
+        optimizer       : Optimizer cần restore state (None → bỏ qua).
+        device          : Device để map trọng số. None → tự động CPU/CUDA.
+
+    Returns:
+        Dict checkpoint gốc (có thể lấy epoch, metrics,...).
+
+    Raises:
+        FileNotFoundError : Nếu file checkpoint không tồn tại.
+
+    Example:
+        >>> payload = load_checkpoint("models/resnet50_best.pth", model, optimizer)
+        >>> start_epoch = payload["epoch"] + 1
+    """
+    if not os.path.isfile(checkpoint_path):
+        raise FileNotFoundError(
+            f"Không tìm thấy checkpoint: {checkpoint_path}"
+        )
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    payload = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(payload["state_dict"])
+
+    if optimizer is not None and "optimizer" in payload:
+        optimizer.load_state_dict(payload["optimizer"])
+
+    print(f"[load_checkpoint] Đã nạp: {checkpoint_path}")
+    print(f"  Arch   : {payload.get('arch', '?')}")
+    print(f"  Epoch  : {payload.get('epoch', '?')}")
+    print(f"  Metrics: {payload.get('metrics', {})}")
+
+    return payload
+
+
+def load_for_inference(
+    checkpoint_path: str,
+    num_classes:     int,
+    device:          Optional[torch.device] = None,
+) -> nn.Module:
+    """
+    Nạp mô hình từ checkpoint để chỉ dùng cho Inference (không train).
+
+    Khác với load_checkpoint(): hàm này tự xây dựng lại mô hình từ tên
+    kiến trúc lưu trong checkpoint, sau đó nạp state_dict.
+    Model trả về ở chế độ eval() và requires_grad = False.
+
+    Args:
+        checkpoint_path : Đường dẫn file .pth tạo bởi save_checkpoint().
+        num_classes     : Số lớp (phải khớp với lúc train).
+        device          : Device để chạy inference.
+
+    Returns:
+        nn.Module ở chế độ eval, sẵn sàng nhận input.
+
+    Raises:
+        FileNotFoundError : Nếu file không tồn tại.
+        ValueError        : Nếu kiến trúc lưu trong checkpoint không hỗ trợ.
+
+    Example:
+        >>> model = load_for_inference("models/resnet50_best.pth", num_classes=10)
+        >>> with torch.no_grad():
+        ...     logits = model(input_tensor)
+    """
+    if not os.path.isfile(checkpoint_path):
+        raise FileNotFoundError(
+            f"Không tìm thấy checkpoint: {checkpoint_path}"
+        )
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    payload = torch.load(checkpoint_path, map_location=device)
+    arch    = payload.get("arch", "")
+
+    # Xây dựng lại mô hình theo kiến trúc đã lưu
+    model = build_model(
+        model_name  = arch,
+        num_classes = num_classes,
+        pretrained  = False,   # Không cần ImageNet weights — sẽ load từ ckpt
+        device      = device,
+    )
+    model.load_state_dict(payload["state_dict"])
+
+    # Khóa toàn bộ tham số (inference chỉ cần forward pass)
+    for param in model.parameters():
+        param.requires_grad = False
+
+    model.eval()
+    return model
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHẦN 5 — TIỆN ÍCH BỔ SUNG
+# ─────────────────────────────────────────────────────────────────────────────
+
+def count_trainable_params(model: nn.Module) -> Tuple[int, int]:
+    """
+    Đếm nhanh số tham số (total, trainable) — không in ra màn hình.
+
+    Args:
+        model: Mô hình PyTorch.
+
+    Returns:
+        Tuple (total_params, trainable_params).
     """
     total     = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return total, trainable
 
 
-def model_summary(model: nn.Module, input_size: Tuple[int, ...] = (1, 3, 224, 224)) -> None:
+def get_head_parameters(model: nn.Module) -> List[nn.Parameter]:
     """
-    In tóm tắt mô hình: tên, tham số, kích thước output từng layer chính.
+    Trả về danh sách tham số của Classification Head.
+    Tiện dùng để truyền riêng cho optimizer với LR cao hơn backbone.
 
     Args:
-        model      : nn.Module
-        input_size : Kích thước tensor đầu vào (B, C, H, W)
-    """
-    name = getattr(model, "_model_name", "unknown")
-    num_classes = getattr(model, "_num_classes", "?")
-    total, trainable = count_parameters(model)
-    device = next(model.parameters()).device
-
-    print(f"\n{'═'*55}")
-    print(f"  MODEL SUMMARY — {name.upper()}")
-    print(f"{'═'*55}")
-    print(f"  Số lớp phân loại : {num_classes}")
-    print(f"  Tổng tham số     : {total:>12,}")
-    print(f"  Trainable        : {trainable:>12,}  ({trainable/total*100:.1f}%)")
-    print(f"  Frozen           : {total-trainable:>12,}  ({(total-trainable)/total*100:.1f}%)")
-    print(f"  Device           : {device}")
-
-    # Forward pass để lấy output shape từng layer chính
-    model.eval()
-    x = torch.zeros(input_size, device=device)
-    print(f"\n  Kiến trúc đầu vào → đầu ra:")
-    print(f"  {'Module':<25} {'Output Shape':<25} {'Params':>12}")
-    print(f"  {'─'*62}")
-
-    try:
-        with torch.no_grad():
-            hooks = []
-            def make_hook(name):
-                def hook(module, inp, out):
-                    if isinstance(out, torch.Tensor):
-                        shape_str = str(tuple(out.shape))
-                        params    = sum(p.numel() for p in module.parameters())
-                        print(f"  {name:<25} {shape_str:<25} {params:>12,}")
-                hooks.append(hook)
-                return hook
-
-            if name == "resnet50":
-                tracked = {
-                    "conv1+bn1+relu": nn.Sequential(model.conv1, model.bn1, model.relu),
-                    "layer1": model.layer1,
-                    "layer2": model.layer2,
-                    "layer3": model.layer3,
-                    "layer4": model.layer4,
-                    "avgpool": model.avgpool,
-                    "fc (head)": model.fc,
-                }
-            elif name == "mobilenet_v3":
-                tracked = {
-                    "features[0]":  model.features[0],
-                    "features[1-4]": model.features[1],
-                    "features[5-8]": model.features[5] if len(model.features) > 5 else model.features[-2],
-                    "features[-1]": model.features[-1],
-                    "classifier (head)": model.classifier,
-                }
-            else:  # efficientnet_b0
-                tracked = {
-                    "features[0]":  model.features[0],
-                    "features[1-3]": model.features[1],
-                    "features[4-6]": model.features[4] if len(model.features) > 4 else model.features[-2],
-                    "features[-1]": model.features[-1],
-                    "classifier (head)": model.classifier,
-                }
-
-            handles = []
-            for layer_name, layer in tracked.items():
-                h = layer.register_forward_hook(make_hook(layer_name))
-                handles.append(h)
-
-            _ = model(x)
-            for h in handles:
-                h.remove()
-
-    except Exception:
-        # Fallback đơn giản
-        print(f"  [Không thể trace forward pass — in thông tin cơ bản]")
-
-    model.train()
-    print(f"{'═'*55}\n")
-
-
-def get_model_info(model: nn.Module) -> Dict:
-    """
-    Trả về dict thông tin mô hình — dùng để log hoặc lưu cùng checkpoint.
-    """
-    total, trainable = count_parameters(model)
-    return {
-        "model_name":   getattr(model, "_model_name", "unknown"),
-        "num_classes":  getattr(model, "_num_classes", None),
-        "in_features":  getattr(model, "_in_features", None),
-        "total_params": total,
-        "trainable":    trainable,
-        "frozen":       total - trainable,
-    }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PHẦN 4 – SAVE / LOAD CHECKPOINT
-# ─────────────────────────────────────────────────────────────────────────────
-
-def save_checkpoint(
-    model: nn.Module,
-    optimizer: torch.optim.Optimizer,
-    epoch: int,
-    metrics: Dict,
-    checkpoint_dir: str,
-    filename: Optional[str] = None,
-    is_best: bool = False,
-) -> str:
-    """
-    Lưu checkpoint đầy đủ bao gồm: trọng số, optimizer state, epoch, metrics.
-
-    Cấu trúc checkpoint dict:
-    {
-        "model_name"    : str,
-        "num_classes"   : int,
-        "epoch"         : int,
-        "model_state"   : OrderedDict,   ← model.state_dict()
-        "optimizer_state": dict,          ← optimizer.state_dict()
-        "metrics"       : dict,           ← {'val_acc': ..., 'val_loss': ...}
-        "model_info"    : dict,           ← get_model_info()
-    }
-
-    Args:
-        model          : nn.Module
-        optimizer      : Optimizer đang dùng
-        epoch          : Epoch hiện tại
-        metrics        : Dict chứa val_acc, val_loss, v.v.
-        checkpoint_dir : Thư mục lưu (vd: 'models/')
-        filename       : Tên file (None = dùng tên mặc định theo model)
-        is_best        : True → cũng lưu thêm bản '<model>_best.pth'
+        model: Mô hình tạo bởi build_model().
 
     Returns:
-        Đường dẫn file checkpoint đã lưu
+        List các nn.Parameter thuộc Head.
     """
-    os.makedirs(checkpoint_dir, exist_ok=True)
-
-    model_name = getattr(model, "_model_name", "model")
-    if filename is None:
-        filename = f"{model_name}_epoch{epoch:03d}.pth"
-
-    save_path = os.path.join(checkpoint_dir, filename)
-
-    checkpoint = {
-        "model_name":      model_name,
-        "num_classes":     getattr(model, "_num_classes", None),
-        "epoch":           epoch,
-        "model_state":     model.state_dict(),
-        "optimizer_state": optimizer.state_dict(),
-        "metrics":         metrics,
-        "model_info":      get_model_info(model),
-    }
-
-    torch.save(checkpoint, save_path)
-    print(f"  [SAVE] Checkpoint: {save_path}  "
-          f"(epoch={epoch}, {', '.join(f'{k}={v:.4f}' for k, v in metrics.items() if isinstance(v, float))})")
-
-    # Nếu là best model → lưu thêm bản <model>_best.pth
-    if is_best:
-        best_path = os.path.join(
-            checkpoint_dir,
-            CHECKPOINT_NAMES.get(model_name, f"{model_name}_best.pth")
+    head_name = getattr(model, "_head_name", None)
+    if head_name is None:
+        raise AttributeError(
+            "model thiếu ._head_name. Dùng build_model() để khởi tạo."
         )
-        torch.save(checkpoint, best_path)
-        print(f"  [BEST] Lưu best model → {best_path}")
-
-    return save_path
+    head_module = getattr(model, head_name)
+    return list(head_module.parameters())
 
 
-def load_checkpoint(
-    checkpoint_path: str,
-    num_classes: int,
-    pretrained: bool = False,
-    device: Optional[torch.device] = None,
-    freeze_strategy: str = "full",
-) -> Tuple[nn.Module, Dict]:
+def get_backbone_parameters(model: nn.Module) -> List[nn.Parameter]:
     """
-    Nạp checkpoint và khôi phục model đầy đủ.
+    Trả về danh sách tham số của Backbone (không bao gồm Head).
+    Tiện dùng để truyền cho optimizer với LR nhỏ hơn.
 
     Args:
-        checkpoint_path : Đường dẫn file .pth
-        num_classes     : Số lớp (phải khớp với lúc lưu)
-        pretrained      : False (đã có weights trong checkpoint)
-        device          : Target device
-        freeze_strategy : Chiến lược freeze sau khi load
+        model: Mô hình tạo bởi build_model().
 
     Returns:
-        (model, checkpoint_dict)
-        → model đã được load weights và chuyển lên device
-        → checkpoint_dict chứa epoch, metrics, v.v.
-
-    Ví dụ:
-        model, ckpt = load_checkpoint(
-            'models/resnet50_best.pth',
-            num_classes=5,
-        )
-        print(f"Epoch: {ckpt['epoch']}, Val Acc: {ckpt['metrics']['val_acc']:.4f}")
+        List các nn.Parameter không thuộc Head.
     """
-    if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint không tồn tại: {checkpoint_path}")
-
-    if device is None:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Load checkpoint (map to device)
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-
-    model_name = checkpoint.get("model_name")
-    if model_name is None:
-        raise ValueError("Checkpoint không chứa 'model_name'.")
-
-    # Tạo lại model và load state_dict
-    model = build_model(
-        model_name=model_name,
-        num_classes=num_classes,
-        pretrained=pretrained,
-        freeze_strategy=freeze_strategy,
-        device=device,
-    )
-    model.load_state_dict(checkpoint["model_state"])
-    model = model.to(device)
-
-    epoch   = checkpoint.get("epoch", 0)
-    metrics = checkpoint.get("metrics", {})
-    print(f"  [LOAD] {checkpoint_path}")
-    print(f"         epoch={epoch} | "
-          f"{', '.join(f'{k}={v:.4f}' for k, v in metrics.items() if isinstance(v, float))}")
-
-    return model, checkpoint
-
-
-def load_for_inference(
-    checkpoint_path: str,
-    num_classes: int,
-    device: Optional[torch.device] = None,
-) -> nn.Module:
-    """
-    Phiên bản rút gọn của load_checkpoint — chỉ dùng cho inference/deploy.
-    Model được đặt ở eval mode, toàn bộ tham số bị freeze.
-
-    Returns:
-        nn.Module đã load weights, ở chế độ eval + no_grad
-    """
-    model, _ = load_checkpoint(
-        checkpoint_path,
-        num_classes=num_classes,
-        pretrained=False,
-        device=device,
-        freeze_strategy="none",
-    )
-    model.eval()
-    return model
+    head_name  = getattr(model, "_head_name", None)
+    head_ids   = {
+        id(p)
+        for p in (getattr(model, head_name).parameters() if head_name else [])
+    }
+    return [p for p in model.parameters() if id(p) not in head_ids]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ENTRY POINT / DEMO
+# SMOKE TEST  (python src/model.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import argparse
-    import sys
 
-    parser = argparse.ArgumentParser(
-        description="Vehicle Type Recognition — Model Builder Demo",
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    parser.add_argument(
-        "--model", type=str, default="resnet50",
-        choices=SUPPORTED_MODELS,
-        help="Tên kiến trúc: resnet50 | mobilenet_v3 | efficientnet_b0",
-    )
-    parser.add_argument(
-        "--num_classes", type=int, default=5,
-        help="Số lớp phân loại (mặc định: 5)",
-    )
-    parser.add_argument(
-        "--freeze", type=str, default="head_only",
-        choices=["head_only", "partial", "full", "none"],
-        help="Chiến lược freeze:\n"
-             "  head_only: chỉ train head (Phase 1)\n"
-             "  partial  : train head + 1/3 cuối backbone (Phase 2)\n"
-             "  full     : train toàn bộ (Phase 3)\n"
-             "  none     : inference only",
-    )
-    parser.add_argument(
-        "--no_pretrained", action="store_true",
-        help="Không dùng trọng số ImageNet (khởi tạo ngẫu nhiên)",
-    )
-    parser.add_argument(
-        "--summary", action="store_true",
-        help="In chi tiết kiến trúc từng layer",
-    )
-    parser.add_argument(
-        "--compare_all", action="store_true",
-        help="So sánh tham số của cả 3 mô hình",
-    )
-    args = parser.parse_args()
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"\nDevice: {device}")
+    print(f"PyTorch  : {torch.__version__}")
 
-    if args.compare_all:
-        # ── So sánh 3 mô hình ────────────────────────────────────────────
-        print(f"\n{'═'*65}")
-        print(f"  ĐỐI SÁNH 3 KIẾN TRÚC — {args.num_classes} classes")
-        print(f"{'═'*65}")
-        print(f"  {'Model':<20} {'Tổng params':>14} {'Trainable':>12} "
-              f"{'Frozen':>12} {'head_only%':>10}")
-        print(f"  {'─'*60}")
-        for mname in SUPPORTED_MODELS:
-            m = build_model(mname, args.num_classes,
-                            pretrained=not args.no_pretrained,
-                            freeze_strategy="head_only",
-                            device=device)
-            total, trainable = count_parameters(m)
-            frozen = total - trainable
-            print(f"  {mname:<20} {total:>14,} {trainable:>12,} "
-                  f"{frozen:>12,} {trainable/total*100:>9.1f}%")
-        print(f"{'═'*65}\n")
-        sys.exit(0)
+    for arch in SUPPORTED_MODELS:
+        print(f"\n{'═' * 55}")
+        print(f" Kiến trúc: {arch}")
+        print(f"{'═' * 55}")
 
-    # ── Tạo 1 mô hình ────────────────────────────────────────────────────
-    model = build_model(
-        model_name=args.model,
-        num_classes=args.num_classes,
-        pretrained=not args.no_pretrained,
-        freeze_strategy=args.freeze,
-        device=device,
-    )
+        # ── Khởi tạo mô hình ─────────────────────────────────────────────
+        print(f"\n[1] build_model(pretrained=True) ...")
+        model = build_model(arch, num_classes=10, pretrained=True, device=device)
 
-    if args.summary:
-        model_summary(model)
+        # ── Kiểm tra 3 chiến lược freeze ─────────────────────────────────
+        for strat in SUPPORTED_STRATEGIES:
+            switch_strategy(model, strat)
+            model._current_strategy = strat      # type: ignore[attr-defined]
+            total, trainable = count_trainable_params(model)
+            pct = trainable / max(total, 1) * 100
+            print(f"\n[strategy = '{strat}']")
+            model_summary(model, print_layers=True)
 
-    # ── Smoke test forward pass ───────────────────────────────────────────
-    print("Forward pass smoke test...")
-    model.eval()
-    dummy = torch.zeros(2, 3, 224, 224, device=device)
-    with torch.no_grad():
-        out = model(dummy)
-    assert out.shape == (2, args.num_classes), \
-        f"Output shape sai: {out.shape} (mong đợi (2, {args.num_classes}))"
-    print(f"  Input:  {tuple(dummy.shape)}")
-    print(f"  Output: {tuple(out.shape)}  ← PASS\n")
+        # ── Test forward pass ─────────────────────────────────────────────
+        print(f"\n[2] Forward pass với fake batch (B=2, 3×224×224) ...")
+        switch_strategy(model, "full")
+        model.eval()
+        with torch.no_grad():
+            x      = torch.randn(2, 3, 224, 224, device=device)
+            logits = model(x)
+        print(f"   Input  shape : {tuple(x.shape)}")
+        print(f"   Output shape : {tuple(logits.shape)}")   # (2, 10)
+        assert logits.shape == (2, 10), \
+            f"Output shape sai! Mong đợi (2, 10), nhận {tuple(logits.shape)}"
+        print("   ✅ Forward pass PASSED")
 
-    # ── Demo switch strategy ──────────────────────────────────────────────
-    print("Demo switch_strategy():")
-    for strategy in ["head_only", "partial", "full"]:
-        switch_strategy(model, strategy)
+        # ── Test get_head_parameters ──────────────────────────────────────
+        switch_strategy(model, "head_only")
+        head_params    = get_head_parameters(model)
+        backbone_params = get_backbone_parameters(model)
+        print(f"\n[3] Parameter groups:")
+        print(f"   Head params     : {sum(p.numel() for p in head_params):,}")
+        print(f"   Backbone params : {sum(p.numel() for p in backbone_params):,}")
+
+    print(f"\n{'═' * 55}")
+    print(" ✅ Tất cả smoke test PASSED — model.py hoạt động đúng.")
+    print(f"{'═' * 55}\n")

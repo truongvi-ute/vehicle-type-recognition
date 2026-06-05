@@ -1,541 +1,445 @@
 """
 src/dataset.py
 ==============
-Bộ nạp dữ liệu PyTorch (Dataset & DataLoader) cho đồ án
+Module PyTorch DataLoader cho đồ án
 Nhận dạng Phương tiện Giao thông (Vehicle Type Recognition).
 
-Gồm 3 phần:
-  1. VehicleDataset   — torch.utils.data.Dataset tuỳ chỉnh
-  2. Transform Factory — bộ biến đổi ảnh cho train / valid / test
-  3. DataLoader Factory— tạo DataLoader cho cả 3 split
+Dữ liệu đầu vào đã được tiền xử lý hoàn chỉnh bởi data_prep.py:
+  - Ảnh kích thước 224×224 (BGR → được xử lý bởi OpenCV pipelines).
+  - Tập Train đã cân bằng class và augment vật lý x4 pipelines.
+  - Tập Valid và Test KHÔNG augment thêm (giữ nguyên để đánh giá khách quan).
+
+Sử dụng:
+    from dataset import create_dataloaders
+
+    train_loader, valid_loader, test_loader, class_names = create_dataloaders(
+        data_dir   = "data/augmented",
+        batch_size = 32,
+        num_workers= 0,   # Windows: đặt 0 nếu gặp lỗi spawn
+    )
 
 Thư viện cần thiết:
-  pip install torch torchvision pillow
+    pip install torch torchvision
 """
 
+from __future__ import annotations
+
 import os
-import json
-from pathlib import Path
+import sys
 from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
-from PIL import Image
-from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
-from torchvision import transforms
+from torch import Tensor
+from torch.utils.data import DataLoader
+from torchvision import datasets
 from torchvision.transforms import v2
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HẰNG SỐ CẤU HÌNH
-# ─────────────────────────────────────────────────────────────────────────────
-
-IMG_SIZE   = 224       # Kích thước ảnh đầu vào CNN (đã chuẩn hoá bởi data_prep.py)
-IMG_EXTS   = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-
-# Giá trị mean & std của ImageNet — dùng để chuẩn hoá ảnh
-# phù hợp với các mô hình pre-trained (ResNet, MobileNet, EfficientNet)
-IMAGENET_MEAN = (0.485, 0.456, 0.406)
-IMAGENET_STD  = (0.229, 0.224, 0.225)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHẦN 1 – VEHICLE DATASET
+# HẰNG SỐ CHUẨN HOÁ IMAGENET
 # ─────────────────────────────────────────────────────────────────────────────
 
-class VehicleDataset(Dataset):
+# Giá trị mean/std chuẩn ImageNet — phù hợp với backbone pre-trained
+# (ResNet-50, ViT) được huấn luyện trên ImageNet.
+IMAGENET_MEAN: List[float] = [0.485, 0.456, 0.406]
+IMAGENET_STD:  List[float] = [0.229, 0.224, 0.225]
+
+NUM_CLASSES: int = 10   # bicycle, boat, bus, car, helicopter,
+                        # minibus, motorcycle, taxi, train, truck
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHẦN 1 — TRANSFORMS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_transforms(split: str) -> v2.Compose:
     """
-    Dataset tuỳ chỉnh đọc ảnh đã xử lý từ thư mục có cấu trúc:
+    Tạo pipeline biến đổi ảnh tối giản dùng torchvision.transforms.v2.
 
-        processed_dir/
-          ├── train/<ClassName>/*.jpg
-          ├── valid/<ClassName>/*.jpg   ← gồm cả *_unseen.jpg và *_copy.jpg
-          └── test/<ClassName>/*.jpg
+    Lý do KHÔNG thêm flip/rotate ở đây:
+        Tập Train đã trải qua 4 pipelines tăng cường vật lý (Base/Night/Rain/Sun)
+        trong data_prep.py.  Thêm biến đổi hình học online có thể làm "lệch"
+        phân phối của tập Train so với Valid/Test và gây Train-Serving Skew.
 
-    Mỗi thư mục con (ClassName) là 1 nhãn phân loại.
-    Nhãn số (label index) được ánh xạ theo thứ tự alphabet của tên lớp.
+    Quy trình chung cho MỌI split (train / valid / test):
+        1. v2.ToImage()          — Chuyển PIL Image / np.ndarray → Tensor uint8
+        2. v2.ToDtype(float32)   — Chuẩn hóa về [0.0, 1.0]
+        3. v2.Normalize(...)     — Chuẩn hoá theo mean/std ImageNet
 
     Args:
-        root_dir  : Đường dẫn đến `processed_dir/<split>` (vd: data/processed/train)
-        transform : Biến đổi torchvision áp dụng lên ảnh (None = không biến đổi)
-        class_to_idx : Dict ánh xạ tên lớp → index (nếu None, tự tạo từ thư mục)
-        suffix_filter: Chỉ nạp ảnh có suffix nhất định, vd: '_unseen', '_copy', hoặc None (tất cả)
+        split: Một trong "train", "valid", "test" (không phân biệt hoa/thường).
+               Giữ tham số này để dễ mở rộng sau (VD: thêm RandAugment cho train).
 
-    Thuộc tính công khai:
-        classes     : list[str]       — Danh sách tên lớp (sorted)
-        class_to_idx: dict[str, int]  — Ánh xạ tên lớp → index số
-        idx_to_class: dict[int, str]  — Ánh xạ ngược index → tên lớp
-        samples     : list[(path, label)] — Tất cả cặp (đường dẫn ảnh, nhãn)
-        targets     : list[int]       — Danh sách nhãn (phục vụ WeightedSampler)
+    Returns:
+        v2.Compose — pipeline transform hoàn chỉnh.
     """
+    split = split.lower().strip()
 
-    def __init__(
-        self,
-        root_dir: str,
-        transform: Optional[Callable] = None,
-        class_to_idx: Optional[Dict[str, int]] = None,
-        suffix_filter: Optional[str] = None,
-    ) -> None:
-        self.root_dir      = Path(root_dir)
-        self.transform     = transform
-        self.suffix_filter = suffix_filter
+    # Pipeline chung — giống nhau cho cả 3 split trong thiết kế hiện tại
+    pipeline = v2.Compose([
+        v2.ToImage(),                                      # → Tensor uint8 (C, H, W)
+        v2.ToDtype(torch.float32, scale=True),             # → [0.0, 1.0]
+        v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),# → chuẩn hoá ImageNet
+    ])
 
-        if not self.root_dir.exists():
-            raise FileNotFoundError(
-                f"Thư mục không tồn tại: {root_dir}\n"
-                "Hãy chạy data_prep.py trước để tạo dữ liệu đã xử lý."
-            )
-
-        # ── Xây dựng ánh xạ lớp ──────────────────────────────────────────
-        detected_classes = sorted([
-            d.name for d in self.root_dir.iterdir()
-            if d.is_dir() and not d.name.startswith(".")
-        ])
-
-        if not detected_classes:
-            raise ValueError(
-                f"Không tìm thấy lớp nào trong: {root_dir}\n"
-                "Thư mục cần có dạng: <split>/<ClassName>/*.jpg"
-            )
-
-        if class_to_idx is not None:
-            # Dùng ánh xạ được truyền vào (đảm bảo nhất quán giữa train/valid/test)
-            self.class_to_idx = class_to_idx
-            # Bổ sung lớp mới nếu có (tăng trưởng dataset)
-            for cls in detected_classes:
-                if cls not in self.class_to_idx:
-                    self.class_to_idx[cls] = len(self.class_to_idx)
-        else:
-            self.class_to_idx = {cls: i for i, cls in enumerate(detected_classes)}
-
-        self.idx_to_class = {v: k for k, v in self.class_to_idx.items()}
-        self.classes      = list(self.class_to_idx.keys())
-
-        # ── Quét và tạo danh sách samples ────────────────────────────────
-        self.samples: List[Tuple[Path, int]] = []
-        self._build_samples()
-
-    # ── Private helpers ───────────────────────────────────────────────────────
-
-    def _is_valid_image(self, path: Path) -> bool:
-        """Kiểm tra extension hợp lệ và filter suffix nếu có."""
-        if path.suffix.lower() not in IMG_EXTS:
-            return False
-        if self.suffix_filter is not None:
-            return path.stem.endswith(self.suffix_filter)
-        return True
-
-    def _build_samples(self) -> None:
-        """Quét thư mục và điền vào self.samples."""
-        missing_classes = []
-        for cls_name, label in self.class_to_idx.items():
-            cls_dir = self.root_dir / cls_name
-            if not cls_dir.exists():
-                missing_classes.append(cls_name)
-                continue
-            imgs = sorted([p for p in cls_dir.iterdir() if self._is_valid_image(p)])
-            for img_path in imgs:
-                self.samples.append((img_path, label))
-
-        if missing_classes:
-            print(f"  [WARN] Lớp không có thư mục trong split này: {missing_classes}")
-
-        if not self.samples:
-            print(f"⚠️ Bỏ qua lỗi thiếu ảnh: Không tìm thấy ảnh nào trong: {self.root_dir}\nsuffix_filter={self.suffix_filter!r}")
-
-    # ── Thuộc tính tiện lợi ───────────────────────────────────────────────────
-
-    @property
-    def targets(self) -> List[int]:
-        """Danh sách nhãn của tất cả samples — dùng cho WeightedRandomSampler."""
-        return [label for _, label in self.samples]
-
-    @property
-    def num_classes(self) -> int:
-        return len(self.class_to_idx)
-
-    # ── PyTorch Dataset interface ─────────────────────────────────────────────
-
-    def __len__(self) -> int:
-        return len(self.samples)
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
-        """
-        Trả về (tensor ảnh, nhãn số nguyên).
-
-        Tensor ảnh có shape (C, H, W) = (3, 224, 224), dtype float32,
-        đã chuẩn hoá theo ImageNet mean/std nếu transform được áp dụng.
-        """
-        img_path, label = self.samples[idx]
-        try:
-            img = Image.open(img_path).convert("RGB")
-        except Exception as e:
-            raise RuntimeError(f"Không thể đọc ảnh: {img_path}\n{e}")
-
-        if self.transform:
-            img = self.transform(img)
-
-        return img, label
-
-    # ── Thông tin debug ───────────────────────────────────────────────────────
-
-    def __repr__(self) -> str:
-        return (
-            f"VehicleDataset(\n"
-            f"  root={self.root_dir},\n"
-            f"  samples={len(self.samples)},\n"
-            f"  classes={self.classes},\n"
-            f"  suffix_filter={self.suffix_filter!r}\n"
-            f")"
-        )
-
-    def class_distribution(self) -> Dict[str, int]:
-        """Trả về số lượng ảnh mỗi lớp — hỗ trợ phân tích imbalance."""
-        dist: Dict[str, int] = {cls: 0 for cls in self.classes}
-        for _, label in self.samples:
-            dist[self.idx_to_class[label]] += 1
-        return dist
+    return pipeline
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHẦN 2 – TRANSFORM FACTORY
+# PHẦN 2 — MIXUP / CUTMIX COLLATE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_transforms(split: str, img_size: int = IMG_SIZE):
+def get_mixup_cutmix(
+    num_classes: int = NUM_CLASSES,
+    cutmix_alpha: float = 1.0,
+    mixup_alpha: float  = 0.2,
+) -> v2.RandomChoice:
     """
-    Tạo pipeline biến đổi ảnh phù hợp với từng split (dùng torchvision.transforms.v2).
+    Tạo transform trộn ảnh trong RAM dùng RandomChoice giữa CutMix và MixUp.
 
-    Train : Online Augmentation mạnh — tăng tính tổng quát hoá, chống Overfitting.
-    Valid / Test : Chỉ Resize + Normalize — không augment → đánh giá khách quan.
+    Nguyên lý:
+        - CutMix (alpha=1.0): Cắt một vùng chữ nhật ngẫu nhiên từ ảnh A,
+          dán chồng lên ảnh B. Nhãn được trộn theo tỷ lệ diện tích.
+          → Buộc mô hình học toàn bộ cấu trúc phương tiện, không chỉ tập
+            trung vào 1 chi tiết nổi bật.
 
-    Kỹ thuật Augmentation trên tập Train:
-      - RandomHorizontalFlip : Xe có thể chụp từ trái hoặc phải
-      - RandomRotation(±15°)   : Xe bị nghiêng nhẹ khi chụp
-      - ColorJitter            : Mô phỏng ánh sáng khác nhau (ngày/đêm/mưa)
-      - RandomAffine           : Dịch chuyển & scale để tăng robustness
-      - RandomErasing          : Mô phỏng bị che khuất (biển số, cột đèn)
-      - Normalize(ImageNet)    : Căn chỉnh phân phối pixel với pre-trained weights
+        - MixUp (alpha=0.2): Kết hợp tuyến tính 2 ảnh:
+            x_mix = λ·x_a + (1−λ)·x_b,  y_mix = λ·y_a + (1−λ)·y_b
+          với λ ~ Beta(alpha, alpha).
+          → Làm mịn nhãn (Label Smoothing ngầm định), giảm Overfitting.
+
+        - RandomChoice: Với mỗi batch, ngẫu nhiên chọn 1 trong 2 kỹ thuật.
+
+    LƯU Ý QUAN TRỌNG:
+        Transform này hoạt động trên CẢ BATCH (images + labels), không phải
+        từng ảnh đơn lẻ. Phải được gắn vào `collate_fn` của DataLoader.
+        Xem hàm `_mixup_cutmix_collate_fn()` bên dưới.
 
     Args:
-        split    : 'train' | 'valid' | 'test'
-        img_size : Kích thước ảnh đầu vào (mặc định 224)
+        num_classes  : Số lượng lớp phân loại (mặc định = 10).
+        cutmix_alpha : Tham số Beta cho CutMix (càng lớn → tỷ lệ cắt ngẫu nhiên hơn).
+        mixup_alpha  : Tham số Beta cho MixUp (nhỏ → trộn ít, lớn → trộn nhiều).
 
     Returns:
-        torchvision.transforms.v2.Compose
+        v2.RandomChoice — transform batch-level sẵn sàng dùng trong collate_fn.
     """
-    split = split.lower()
-
-    _normalize = v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-
-    if split == "train":
-        return v2.Compose([
-            v2.ToImage(),                                  # PIL → TVTensor
-
-            # ── Augmentation hình học ──
-            v2.RandomHorizontalFlip(p=0.5),                # Chống thiên vị góc chụp
-            v2.RandomRotation(degrees=15),                 # Xoay nghiêng ±15°
-            v2.RandomAffine(
-                degrees=0,
-                translate=(0.05, 0.05),                    # Dịch chuyển ±5%
-                scale=(0.9, 1.1),                          # Scale ±10%
-            ),
-
-            # ── Augmentation màu sắc ──
-            v2.ColorJitter(
-                brightness=0.2,
-                contrast=0.2,
-                saturation=0.2,
-                hue=0.05,
-            ),
-
-            # ── Resize + Đưa về float [0, 1] ──
-            v2.Resize((img_size, img_size), antialias=True),
-            v2.ToDtype(torch.float32, scale=True),
-            _normalize,
-
-            # ── Random Erasing (sau ToDtype, hoạt động trên Tensor) ──
-            v2.RandomErasing(
-                p=0.2,
-                scale=(0.02, 0.10),                        # Xóa 2–10% diện tích ảnh
-                ratio=(0.3, 3.3),
-                value=0,                                   # Màu đen (phù hợp padding viền đen)
-            ),
-        ])
-
-    elif split in ("valid", "test"):
-        # Tuyệt đối giữ nguyên → đảm bảo đánh giá công bằng
-        return v2.Compose([
-            v2.ToImage(),
-            v2.Resize((img_size, img_size), antialias=True),
-            v2.ToDtype(torch.float32, scale=True),
-            _normalize,
-        ])
-
-    else:
-        raise ValueError(
-            f"split phải là 'train', 'valid' hoặc 'test'. Nhận: '{split}'"
-        )
+    return v2.RandomChoice([
+        v2.CutMix(num_classes=num_classes, alpha=cutmix_alpha),
+        v2.MixUp(num_classes=num_classes,  alpha=mixup_alpha),
+    ])
 
 
-def denormalize(tensor: torch.Tensor) -> torch.Tensor:
+def _build_mixup_collate_fn(
+    mixup_cutmix: v2.RandomChoice,
+) -> Callable[[List], Tuple[Tensor, Tensor]]:
     """
-    Đảo ngược chuẩn hoá ImageNet để hiển thị ảnh.
-    Input : Tensor (C, H, W) đã normalize
-    Output: Tensor (C, H, W) giá trị [0, 1]
+    Xây dựng hàm collate_fn tùy chỉnh để áp dụng MixUp/CutMix trên batch.
+
+    PyTorch DataLoader gọi collate_fn sau khi ghép các mẫu riêng lẻ thành
+    batch.  Đây là điểm chèn đúng cho các transform cần xử lý cả batch.
+
+    Args:
+        mixup_cutmix: Transform RandomChoice(CutMix, MixUp) từ get_mixup_cutmix().
+
+    Returns:
+        collate_fn — hàm nhận list[(image, label)] và trả về (images, labels)
+                     đã trộn theo CutMix hoặc MixUp.
     """
-    mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
-    std  = torch.tensor(IMAGENET_STD).view(3, 1, 1)
-    return torch.clamp(tensor * std + mean, 0.0, 1.0)
+    # Lấy hàm collate mặc định của PyTorch để ghép tensor trước
+    default_collate = torch.utils.data.default_collate
+
+    def collate_fn(batch: List[Tuple[Tensor, int]]) -> Tuple[Tensor, Tensor]:
+        """
+        1. Ghép batch bằng default_collate → images: (B, C, H, W), labels: (B,)
+        2. Áp dụng mixup_cutmix(images, labels) → trả về tensor đã trộn.
+        """
+        images, labels = default_collate(batch)     # (B, C, H, W), (B,)
+        images, labels = mixup_cutmix(images, labels)
+        return images, labels
+
+    return collate_fn
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHẦN 3 – DATALOADER FACTORY
+# PHẦN 3 — CREATE DATALOADERS
 # ─────────────────────────────────────────────────────────────────────────────
-
-def make_weighted_sampler(dataset: VehicleDataset) -> WeightedRandomSampler:
-    """
-    Tạo WeightedRandomSampler để xử lý dataset mất cân bằng lớp (class imbalance).
-
-    Lớp ít ảnh hơn sẽ được lấy mẫu với xác suất cao hơn → mô hình học đều các lớp.
-    Chỉ dùng cho tập TRAIN, không dùng cho valid/test.
-
-    Returns:
-        WeightedRandomSampler — truyền vào DataLoader(sampler=...)
-    """
-    targets = dataset.targets
-    class_counts = torch.zeros(dataset.num_classes, dtype=torch.float)
-    for label in targets:
-        class_counts[label] += 1
-
-    # Tránh chia cho 0 nếu lớp không có ảnh
-    class_counts = torch.clamp(class_counts, min=1)
-    class_weights = 1.0 / class_counts
-
-    # Trọng số từng sample = trọng số lớp của nó
-    sample_weights = torch.tensor([class_weights[t] for t in targets])
-
-    return WeightedRandomSampler(
-        weights=sample_weights,
-        num_samples=len(sample_weights),
-        replacement=True,
-    )
-
 
 def create_dataloaders(
-    processed_dir: str,
-    batch_size: int = 32,
-    num_workers: int = 0,
-    img_size: int = IMG_SIZE,
-    use_weighted_sampler: bool = True,
-    pin_memory: bool = False,
-    valid_suffix: Optional[str] = None,
-) -> Tuple[DataLoader, DataLoader, DataLoader, Dict[str, int]]:
+    data_dir:    str,
+    batch_size:  int  = 32,
+    num_workers: int  = 0,
+    pin_memory:  Optional[bool] = None,
+    mixup_alpha:   float = 0.2,
+    cutmix_alpha:  float = 1.0,
+    prefetch_factor: Optional[int] = None,
+) -> Tuple[DataLoader, DataLoader, DataLoader, List[str]]:
     """
-    Tạo DataLoader cho train, valid, test từ thư mục `processed_dir`.
+    Khởi tạo và trả về 3 DataLoader cho Train / Valid / Test.
+
+    Cấu trúc thư mục mong đợi tại `data_dir`:
+        data_dir/
+          train/<class>/   ← ảnh đã augment x4 pipelines
+          valid/<class>/   ← ảnh nguyên bản (không augment thêm)
+          test/<class>/    ← ảnh nguyên bản (không augment thêm)
+
+    Thiết kế:
+        - Dataset    : torchvision.datasets.ImageFolder (tự động đọc nhãn từ tên thư mục).
+        - train_loader: shuffle=True + collate_fn MixUp/CutMix online.
+        - valid/test : shuffle=False + collate mặc định (đánh giá khách quan).
+        - pin_memory  : Tự động bật nếu CUDA khả dụng (tăng tốc copy CPU→GPU).
 
     Args:
-        processed_dir        : Thư mục gốc chứa train/, valid/, test/
-        batch_size           : Số ảnh mỗi batch (mặc định 32)
-        num_workers          : Số luồng nạp dữ liệu song song (0 = main thread)
-        img_size             : Kích thước ảnh đầu vào
-        use_weighted_sampler : Bật cân bằng lớp cho tập train (mặc định True)
-        pin_memory           : True nếu dùng GPU (tăng tốc copy RAM→VRAM)
-        valid_suffix         : Lọc valid theo suffix: None (tất cả), '_unseen', '_copy'
+        data_dir       : Đường dẫn thư mục gốc (ví dụ: "data/augmented").
+        batch_size     : Kích thước mỗi batch.
+        num_workers    : Số luồng nạp dữ liệu song song.
+                         ⚠️ Windows: Đặt 0 nếu gặp lỗi BrokenPipeError.
+        pin_memory     : Ghim bộ nhớ CPU → tăng tốc chuyển lên GPU.
+                         None → tự động theo CUDA availability.
+        mixup_alpha    : Tham số Beta cho MixUp (khuyến nghị: 0.2).
+        cutmix_alpha   : Tham số Beta cho CutMix (khuyến nghị: 1.0).
+        prefetch_factor: Số batch prefetch (None = tắt, chỉ bật khi num_workers > 0).
 
     Returns:
-        (train_loader, valid_loader, test_loader, class_to_idx)
+        Tuple gồm 4 phần tử:
+            [0] train_loader : DataLoader với MixUp/CutMix collate_fn.
+            [1] valid_loader : DataLoader chuẩn (không trộn ảnh).
+            [2] test_loader  : DataLoader chuẩn (không trộn ảnh).
+            [3] class_names  : List[str] tên các lớp theo thứ tự index
+                               (ví dụ: ["bicycle", "boat", ..., "truck"]).
 
-    Ví dụ sử dụng:
-        train_dl, valid_dl, test_dl, cls_map = create_dataloaders(
-            processed_dir="data/processed",
-            batch_size=32,
-            num_workers=4,
-        )
-        for images, labels in train_dl:
-            # images: Tensor(B, 3, 224, 224), labels: Tensor(B,)
-            ...
+    Raises:
+        FileNotFoundError: Nếu một trong các thư mục train/valid/test không tồn tại.
+        RuntimeError     : Nếu class_to_idx không nhất quán giữa các split.
     """
-    processed_dir = Path(processed_dir)
+    # ── Xác nhận thư mục tồn tại ──────────────────────────────────────────
+    for split_name in ("train", "valid", "test"):
+        split_path = os.path.join(data_dir, split_name)
+        if not os.path.isdir(split_path):
+            raise FileNotFoundError(
+                f"Không tìm thấy thư mục split '{split_name}': {split_path}\n"
+                f"Hãy chạy data_prep.py --step 3 trước."
+            )
 
-    # ── Tạo Train Dataset & lấy class_to_idx chuẩn ──────────────────────
-    train_dataset = VehicleDataset(
-        root_dir=processed_dir / "train",
-        transform=get_transforms("train", img_size),
+    # ── Tự động xác định pin_memory ───────────────────────────────────────
+    if pin_memory is None:
+        pin_memory = torch.cuda.is_available()
+
+    # ── Tạo Transforms ────────────────────────────────────────────────────
+    train_tf = get_transforms("train")
+    valid_tf = get_transforms("valid")
+    test_tf  = get_transforms("test")
+
+    # ── Tạo Datasets bằng ImageFolder ────────────────────────────────────
+    train_ds = datasets.ImageFolder(
+        root      = os.path.join(data_dir, "train"),
+        transform = train_tf,
     )
-    class_to_idx = train_dataset.class_to_idx   # Dùng lại cho valid & test
-
-    # ── Valid Dataset ─────────────────────────────────────────────────────
-    valid_dataset = VehicleDataset(
-        root_dir=processed_dir / "valid",
-        transform=get_transforms("valid", img_size),
-        class_to_idx=class_to_idx,
-        suffix_filter=valid_suffix,
+    valid_ds = datasets.ImageFolder(
+        root      = os.path.join(data_dir, "valid"),
+        transform = valid_tf,
     )
-
-    # ── Test Dataset ──────────────────────────────────────────────────────
-    test_dataset = VehicleDataset(
-        root_dir=processed_dir / "test",
-        transform=get_transforms("test", img_size),
-        class_to_idx=class_to_idx,
-    )
-
-    # ── In thống kê ───────────────────────────────────────────────────────
-    print(f"\n{'='*55}")
-    print(f"  VehicleDataset — Thống kê")
-    print(f"{'='*55}")
-    print(f"  processed_dir : {processed_dir}")
-    print(f"  batch_size    : {batch_size}")
-    print(f"  Số lớp        : {train_dataset.num_classes}")
-    print(f"  Ánh xạ lớp    : {class_to_idx}")
-    print(f"  {'Split':<8} {'Ảnh':>6} {'Batch':>6}")
-    print(f"  {'-'*25}")
-    for name, ds in [("train", train_dataset), ("valid", valid_dataset), ("test", test_dataset)]:
-        n_batches = (len(ds) + batch_size - 1) // batch_size
-        print(f"  {name:<8} {len(ds):>6} {n_batches:>6}")
-
-    # Phân phối lớp tập train
-    dist = train_dataset.class_distribution()
-    print(f"\n  Phân phối tập Train:")
-    for cls, cnt in dist.items():
-        bar = "█" * (cnt * 20 // max(dist.values()))
-        print(f"    {cls:<15} {cnt:>5}  {bar}")
-    print(f"{'='*55}\n")
-
-    # ── Tạo DataLoader ────────────────────────────────────────────────────
-    common_kwargs = dict(
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
+    test_ds = datasets.ImageFolder(
+        root      = os.path.join(data_dir, "test"),
+        transform = test_tf,
     )
 
-    # Train: dùng WeightedRandomSampler hoặc shuffle
-    if use_weighted_sampler:
-        sampler = make_weighted_sampler(train_dataset)
-        train_loader = DataLoader(
-            train_dataset,
-            sampler=sampler,
-            **common_kwargs,
-        )
-    else:
-        train_loader = DataLoader(
-            train_dataset,
-            shuffle=True,
-            **common_kwargs,
-        )
+    # ── Phát hiện và xác thực class_to_idx ───────────────────────────────
+    class_to_idx: Dict[str, int] = train_ds.class_to_idx
+    class_names:  List[str]      = train_ds.classes
+
+    # Kiểm tra nhất quán giữa 3 split (tên lớp phải khớp nhau)
+    for ds_name, ds in [("valid", valid_ds), ("test", test_ds)]:
+        if ds.class_to_idx != class_to_idx:
+            raise RuntimeError(
+                f"class_to_idx của '{ds_name}' không khớp với 'train'.\n"
+                f"Train : {class_to_idx}\n"
+                f"{ds_name.capitalize()}: {ds.class_to_idx}\n"
+                f"Kiểm tra lại cấu trúc thư mục trong {data_dir}."
+            )
+
+    # ── Tạo MixUp / CutMix collate_fn chỉ cho Train ──────────────────────
+    mixup_cutmix     = get_mixup_cutmix(
+        num_classes  = len(class_names),
+        cutmix_alpha = cutmix_alpha,
+        mixup_alpha  = mixup_alpha,
+    )
+    train_collate_fn = _build_mixup_collate_fn(mixup_cutmix)
+
+    # ── Cấu hình chung cho DataLoader ─────────────────────────────────────
+    # prefetch_factor chỉ hợp lệ khi num_workers > 0
+    _prefetch = prefetch_factor if (num_workers > 0 and prefetch_factor) else None
+
+    loader_kwargs = dict(
+        pin_memory     = pin_memory,
+        num_workers    = num_workers,
+        prefetch_factor= _prefetch,
+    )
+
+    # ── Tạo 3 DataLoaders ─────────────────────────────────────────────────
+    train_loader = DataLoader(
+        dataset    = train_ds,
+        batch_size = batch_size,
+        shuffle    = True,             # Xáo trộn mỗi epoch
+        collate_fn = train_collate_fn, # MixUp / CutMix online
+        drop_last  = True,             # Bỏ batch cuối không đủ size (tránh lỗi BN)
+        **loader_kwargs,
+    )
 
     valid_loader = DataLoader(
-        valid_dataset,
-        shuffle=False,   # Không shuffle valid/test → đảm bảo tính nhất quán đánh giá
-        **common_kwargs,
+        dataset    = valid_ds,
+        batch_size = batch_size,
+        shuffle    = False,            # Không xáo trộn — đánh giá nhất quán
+        collate_fn = None,             # Dùng default_collate (nhãn nguyên, không trộn)
+        drop_last  = False,
+        **loader_kwargs,
     )
 
     test_loader = DataLoader(
-        test_dataset,
-        shuffle=False,
-        **common_kwargs,
+        dataset    = test_ds,
+        batch_size = batch_size,
+        shuffle    = False,
+        collate_fn = None,
+        drop_last  = False,
+        **loader_kwargs,
     )
 
-    return train_loader, valid_loader, test_loader, class_to_idx
-
-
-def create_single_loader(
-    split_dir: str,
-    batch_size: int = 32,
-    num_workers: int = 0,
-    img_size: int = IMG_SIZE,
-    class_to_idx: Optional[Dict[str, int]] = None,
-    split: str = "test",
-    suffix_filter: Optional[str] = None,
-) -> Tuple[DataLoader, Dict[str, int]]:
-    """
-    Tạo DataLoader cho một split đơn lẻ.
-    Hữu ích khi chỉ cần chạy inference trên test hoặc phân tích riêng valid_unseen/valid_copy.
-
-    Returns:
-        (dataloader, class_to_idx)
-    """
-    dataset = VehicleDataset(
-        root_dir=split_dir,
-        transform=get_transforms(split, img_size),
-        class_to_idx=class_to_idx,
-        suffix_filter=suffix_filter,
-    )
-    loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-    )
-    return loader, dataset.class_to_idx
+    return train_loader, valid_loader, test_loader, class_names
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DEMO / SMOKE TEST (chạy trực tiếp)
+# PHẦN 4 — TIỆN ÍCH THỐNG KÊ
+# ─────────────────────────────────────────────────────────────────────────────
+
+def describe_dataset(loader: DataLoader, split_name: str = "split") -> None:
+    """
+    In thống kê tóm tắt về DataLoader: số batch, số mẫu, shape batch.
+
+    Args:
+        loader     : DataLoader cần kiểm tra.
+        split_name : Tên hiển thị (vd: "train", "valid", "test").
+    """
+    ds   = loader.dataset
+    n    = len(ds)                  # type: ignore[arg-type]
+    nb   = len(loader)
+    bs   = loader.batch_size or "?"
+    shuf = getattr(loader.sampler, "generator", None) is not None
+
+    print(f"  [{split_name:>5}] {n:>7,} samples | {nb:>5,} batches "
+          f"(batch_size={bs}) | shuffle={loader.shuffle if hasattr(loader, 'shuffle') else '?'}")  # type: ignore
+
+
+def get_class_distribution(
+    dataset: datasets.ImageFolder,
+) -> Dict[str, int]:
+    """
+    Đếm số lượng ảnh của từng lớp trong ImageFolder dataset.
+
+    Args:
+        dataset: Đối tượng ImageFolder (train_ds, valid_ds, hoặc test_ds).
+
+    Returns:
+        Dict {class_name: count} — sắp xếp theo tên lớp tăng dần.
+    """
+    dist: Dict[str, int] = {cls: 0 for cls in dataset.classes}
+    for _, label_idx in dataset.samples:
+        dist[dataset.classes[label_idx]] += 1
+    return dict(sorted(dist.items()))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QUICK SMOKE TEST  (chạy: python src/dataset.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import argparse
-    import sys
+
+    # Sửa encoding stdout cho Windows
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
     parser = argparse.ArgumentParser(
-        description="VehicleDataset — Kiểm tra DataLoader",
-        formatter_class=argparse.RawTextHelpFormatter,
+        description="Dataset Smoke Test — kiểm tra DataLoader hoạt động đúng.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--processed_dir",
-        type=str,
-        default=r"g:\Data\Projects\VehicleTypeRecognition\data\processed",
-        help="Thư mục processed/ (chứa train/, valid/, test/)",
+        "--data_dir", type=str, default="data/augmented",
+        help="Thư mục gốc chứa train/ valid/ test/.",
     )
     parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=8,
-        help="Kích thước batch (mặc định: 8)",
+        "--batch_size", type=int, default=8,
+        help="Kích thước batch dùng để test.",
     )
     parser.add_argument(
-        "--num_workers",
-        type=int,
-        default=0,
-        help="Số luồng nạp dữ liệu (mặc định: 0)",
-    )
-    parser.add_argument(
-        "--valid_suffix",
-        type=str,
-        default=None,
-        choices=[None, "_unseen", "_copy"],
-        help="Lọc valid: None=tất cả, _unseen=chỉ ảnh mới, _copy=chỉ ảnh copy từ train",
+        "--num_workers", type=int, default=0,
+        help="Số worker. Dùng 0 trên Windows để tránh lỗi spawn.",
     )
     args = parser.parse_args()
 
-    print("\n=== VehicleDataset Smoke Test ===")
+    print("=" * 65)
+    print("VEHICLE TYPE RECOGNITION — Dataset Smoke Test")
+    print("=" * 65)
+    print(f"  data_dir    : {args.data_dir}")
+    print(f"  batch_size  : {args.batch_size}")
+    print(f"  num_workers : {args.num_workers}")
+    print(f"  CUDA        : {torch.cuda.is_available()}")
+    print()
 
-    try:
-        train_dl, valid_dl, test_dl, cls_map = create_dataloaders(
-            processed_dir=args.processed_dir,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            use_weighted_sampler=True,
-            valid_suffix=args.valid_suffix,
-        )
+    # ── Kiểm tra thư mục ─────────────────────────────────────────────────
+    if not os.path.isdir(args.data_dir):
+        print(f"[LỖI] Không tìm thấy thư mục: {args.data_dir}")
+        print("       Hãy chạy `python src/data_prep.py --all` trước.")
+        sys.exit(1)
 
-        print("Lấy 1 batch từ mỗi split:")
-        for name, loader in [("train", train_dl), ("valid", valid_dl), ("test", test_dl)]:
-            imgs, labels = next(iter(loader))
-            print(f"  [{name}] images: {tuple(imgs.shape)}  labels: {labels.tolist()}")
-            # Kiểm tra giá trị tensor hợp lệ
-            assert not torch.isnan(imgs).any(), f"[{name}] Có NaN trong tensor ảnh!"
-            assert imgs.shape[1:] == (3, IMG_SIZE, IMG_SIZE), \
-                f"[{name}] Shape sai: {imgs.shape}"
+    # ── Tạo DataLoaders ───────────────────────────────────────────────────
+    print("Đang khởi tạo DataLoaders ...")
+    train_loader, valid_loader, test_loader, class_names = create_dataloaders(
+        data_dir    = args.data_dir,
+        batch_size  = args.batch_size,
+        num_workers = args.num_workers,
+    )
 
-        # Kiểm tra denormalize
-        imgs, _ = next(iter(test_dl))
-        denorm = denormalize(imgs[0])
-        assert denorm.min() >= 0.0 and denorm.max() <= 1.0, \
-            "denormalize() cho kết quả ngoài [0,1]"
-        print("\n  denormalize(): OK — giá trị nằm trong [0, 1]")
+    # ── Thống kê dataset ──────────────────────────────────────────────────
+    print(f"\nTổng số lớp  : {len(class_names)}")
+    print(f"Tên các lớp  : {class_names}\n")
 
-        print(f"\n=== TẤT CẢ KIỂM TRA THÀNH CÔNG — DataLoader sẵn sàng ===")
+    print("Thống kê DataLoader:")
+    for loader, name in [
+        (train_loader, "train"),
+        (valid_loader, "valid"),
+        (test_loader,  "test"),
+    ]:
+        ds       = loader.dataset               # type: ignore[union-attr]
+        n_sample = len(ds)
+        n_batch  = len(loader)
+        print(f"  [{name:>5}] {n_sample:>8,} samples | "
+              f"{n_batch:>5,} batches (batch_size={loader.batch_size})")
 
-    except FileNotFoundError as e:
-        print(f"\n[WARN] Chưa có dữ liệu processed:\n  {e}")
-        print("  → Hãy chạy trước: python src/data_prep.py")
-        sys.exit(0)
+    # ── Phân phối lớp trên từng split ────────────────────────────────────
+    print("\nPhân phối lớp (Train):")
+    dist = get_class_distribution(train_loader.dataset)  # type: ignore[arg-type]
+    for cls, cnt in dist.items():
+        bar = "█" * (cnt // max(1, max(dist.values()) // 30))
+        print(f"  {cls:>12} : {cnt:>7,}  {bar}")
+
+    # ── Lấy 1 batch Train và kiểm tra shape ──────────────────────────────
+    print("\nLấy 1 batch từ train_loader ...")
+    imgs, labels = next(iter(train_loader))
+
+    print(f"\n  images.shape : {tuple(imgs.shape)}")    # (B, C, H, W)
+    print(f"  images.dtype : {imgs.dtype}")             # torch.float32
+    print(f"  labels.shape : {tuple(labels.shape)}")    # (B, NUM_CLASSES) — soft labels sau MixUp/CutMix
+    print(f"  labels.dtype : {labels.dtype}")           # torch.float32
+    print(f"  images min/max: [{imgs.min():.3f}, {imgs.max():.3f}]")
+
+    # ── Kiểm tra Valid/Test batch (nhãn vẫn là long integers) ────────────
+    print("\nLấy 1 batch từ valid_loader ...")
+    v_imgs, v_labels = next(iter(valid_loader))
+    print(f"  valid images.shape : {tuple(v_imgs.shape)}")
+    print(f"  valid labels.shape : {tuple(v_labels.shape)}")
+    print(f"  valid labels.dtype : {v_labels.dtype}")    # torch.int64
+
+    print("\n✅ Smoke test PASSED — DataLoader hoạt động đúng.")
+    print("=" * 65)
