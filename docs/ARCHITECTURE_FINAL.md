@@ -48,7 +48,7 @@ Class balancing is applied only to `train`.
 
 Default target:
 
-- About **7,000 images/class**.
+- Target images/class defaults to the largest train class size.
 - The target is configurable; final dataset size depends on the chosen quota for each class.
 
 Large classes: `boat`, `car`.
@@ -56,14 +56,17 @@ Large classes: `boat`, `car`.
 Handling:
 
 - Do not generate excessive extra images.
-- Select, cap, or distribute available train images into environment buckets.
-- Generate extra images only if a target bucket is short.
+- Cap the final output to the configured class target.
+- Keep 70% of the target as normal-condition outputs and distribute 30% across weather buckets.
+- Generate extra images only when the class is still below the configured target.
 
 Minority classes: `helicopter`, `taxi`, `train`, `bicycle`, `minibus`.
 
 Handling:
 
-- Generate additional variants from train images until class and bucket quotas are filled.
+- If the class has fewer than 70% of the target, generate geometric/content variants until the normal-condition quota reaches 70%.
+- After the 70% normal quota is filled, generate or reuse images for the 30% weather quota.
+- If the class already has more than 70% but less than 100% of the target, use the available excess over 70% for weather outputs first, then generate only the remaining shortfall.
 - Allowed transforms include Horizontal Flip, Rotation, Shift/Scale, Perspective Transform, Brightness/Contrast, and Coarse Dropout.
 
 The `data/balanced/` folder is a train-only intermediate workspace for quota preparation. It must not contain `valid_unseen`, `valid_traincopy`, or `test`.
@@ -83,18 +86,26 @@ Offline augmentation is quota-based and applies only to `train`.
 
 Default environment distribution per class:
 
-| Environment bucket | Ratio | Example for 7,000 images/class |
+| Environment bucket | Ratio | Example for target class size |
 |--------------------|-------|--------------------------------|
-| `normal` | 70% | 4,900 |
-| `rain` | 10% | 700 |
-| `sun` | 10% | 700 |
-| `night` | 10% | 700 |
+| `normal` | 70% | `round(target * 0.70)` |
+| `rain` | 10% | `round(target * 0.10)` |
+| `sun` | 10% | `round(target * 0.10)` |
+| `night` | 10% | remaining images |
 
 Purpose:
 
 - Keep the environment distribution close to realistic usage.
 - Keep normal-condition images as the majority.
-- Fill missing bucket quotas without duplicating every image into every environment.
+- Fill the 70% normal quota before using geometric/content transforms for weather shortfalls.
+- Avoid duplicating every image into every environment.
+
+Class fill behavior:
+
+- Classes at or above target are capped to the target distribution and are not over-generated.
+- Classes below 70% of target are first expanded with geometric/content transforms until the normal bucket reaches 70% of target.
+- Classes between 70% and 100% of target reserve 70% for `normal`, use the available excess over 70% for weather outputs, and generate only the missing weather count.
+- Weather outputs are split across `rain`, `sun`, and `night`, each targeting about 10% of the class target.
 
 Bucket behavior:
 
@@ -224,12 +235,7 @@ VehicleTypeRecognition/
 │   ├── balanced/
 │   │   └── <class>/
 │   └── augmented/
-│       ├── train/
-│       │   └── <class>/
-│       │       ├── normal/
-│       │       ├── rain/
-│       │       ├── sun/
-│       │       └── night/
+│       ├── train/<class>/<source>_<bucket>_<orig|geo>_<index>.jpg
 │       ├── valid_unseen/<class>/
 │       ├── valid_traincopy/<class>/
 │       └── test/<class>/

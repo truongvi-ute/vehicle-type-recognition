@@ -42,19 +42,26 @@ Offline augmentation is quota-based.
 
 Default class target:
 
-- About **7,000 images/class**.
+- Target images/class defaults to the largest train class size.
 - Configurable per class.
 
 Default environment distribution:
 
-| Bucket | Ratio | Example for 7,000 images/class |
+| Bucket | Ratio | Example for target class size |
 |--------|-------|--------------------------------|
-| `normal` | 70% | 4,900 |
-| `rain` | 10% | 700 |
-| `sun` | 10% | 700 |
-| `night` | 10% | 700 |
+| `normal` | 70% | `round(target * 0.70)` |
+| `rain` | 10% | `round(target * 0.10)` |
+| `sun` | 10% | `round(target * 0.10)` |
+| `night` | 10% | remaining images |
 
 Total image count after augmentation depends on configured quotas.
+
+Class fill policy:
+
+- If a class already meets or exceeds the target, cap it to the target distribution and do not over-generate.
+- If a class has fewer than 70% of the target, use geometric/content transforms to fill the `normal` bucket up to 70% first.
+- After the 70% `normal` quota is filled, create the remaining 30% as weather outputs split across `rain`, `sun`, and `night`.
+- If a class has more than 70% but less than 100% of the target, keep 70% as `normal`, use the available excess over 70% for weather outputs first, and generate only the remaining weather shortfall.
 
 ## Bucket Definitions
 
@@ -85,8 +92,9 @@ Large classes:
 Policy:
 
 - Do not over-generate.
-- Fill environment buckets mostly from available train images.
-- Generate only missing bucket samples if needed.
+- Cap outputs to the configured class target.
+- Fill environment buckets from available train images where possible.
+- Generate only the missing samples needed to maintain the 70% normal and 30% weather distribution.
 
 ## Minority Classes
 
@@ -107,7 +115,7 @@ Allowed variant transforms:
 - Brightness/Contrast
 - Coarse Dropout
 
-After variant generation, combine samples with Rain, Sun, and Night simulation as needed to fill bucket quotas.
+After the normal quota reaches 70% of target, combine available or generated variants with Rain, Sun, and Night simulation as needed to fill the remaining 30% weather quota.
 
 ## Online Augmentation
 

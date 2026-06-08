@@ -54,19 +54,25 @@ Class balancing and offline augmentation are applied only to `train`.
 
 Default class quota:
 
-- About **7,000 images/class**.
+- Target images/class defaults to the largest train class size.
 - Final dataset size depends on configured class quotas.
 
 Default environment quota:
 
-| Bucket | Ratio | Example for 7,000 images/class |
+| Bucket | Ratio | Example for target class size |
 |--------|-------|--------------------------------|
-| `normal` | 70% | 4,900 |
-| `rain` | 10% | 700 |
-| `sun` | 10% | 700 |
-| `night` | 10% | 700 |
+| `normal` | 70% | `round(target * 0.70)` |
+| `rain` | 10% | `round(target * 0.10)` |
+| `sun` | 10% | `round(target * 0.10)` |
+| `night` | 10% | remaining images |
 
-Large classes such as `boat` and `car` are not over-generated. Minority classes such as `helicopter`, `taxi`, `train`, `bicycle`, and `minibus` use additional transforms to fill quotas.
+Quota fill policy:
+
+- Classes that already meet or exceed the target are capped to the target distribution and are not over-generated.
+- Classes below 70% of target use geometric/content transforms to fill the `normal` bucket up to 70% first, then generate the remaining 30% through `rain`, `sun`, and `night`.
+- Classes between 70% and 100% of target keep 70% as `normal`; available images above that 70% are used for weather outputs first, and only the remaining shortfall is generated.
+
+Large classes such as `boat` and `car` are not over-generated. Minority classes such as `helicopter`, `taxi`, `train`, `bicycle`, and `minibus` use additional transforms only where needed to fill quotas.
 
 ## Project Structure
 
@@ -93,11 +99,7 @@ VehicleTypeRecognition/
 │   │   └── test/<class>/
 │   ├── balanced/<class>/
 │   └── augmented/
-│       ├── train/<class>/
-│       │   ├── normal/
-│       │   ├── rain/
-│       │   ├── sun/
-│       │   └── night/
+│       ├── train/<class>/<source>_<bucket>_<orig|geo>_<index>.jpg
 │       ├── valid_unseen/<class>/
 │       ├── valid_traincopy/<class>/
 │       └── test/<class>/
@@ -169,6 +171,8 @@ For detailed training hyperparameters, see [docs/TRAINING_GUIDE.md](docs/TRAININ
 - [docs/DATASET_INFO.md](docs/DATASET_INFO.md): Dataset overview.
 - [docs/DATA_STRATEGY.md](docs/DATA_STRATEGY.md): Split, balancing, and leakage rules.
 - [docs/AUGMENTATION.md](docs/AUGMENTATION.md): Offline and online augmentation.
+- [docs/DATA_PREP_MATRICES.md](docs/DATA_PREP_MATRICES.md): Data prep matrix guide.
+- [docs/KAGGLE_RESNET50_CELLS.md](docs/KAGGLE_RESNET50_CELLS.md): Kaggle ResNet-50 notebook cell guide.
 - [docs/TRAINING_GUIDE.md](docs/TRAINING_GUIDE.md): Training and evaluation.
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): Flask + React deployment.
 - [docs/MODEL_COMPARISON.md](docs/MODEL_COMPARISON.md): Model comparison.

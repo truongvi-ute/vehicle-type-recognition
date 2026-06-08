@@ -38,7 +38,7 @@ Class balancing applies only to `train`.
 
 Default target:
 
-- About **7,000 images/class**.
+- Target images/class defaults to the largest train class size.
 - Configurable by class.
 - Final dataset size depends on configured quotas.
 
@@ -50,8 +50,9 @@ Large classes:
 Policy:
 
 - Avoid excessive generation.
-- Select, cap, or distribute available images into environment buckets.
-- Generate additional samples only for missing bucket quota.
+- Cap outputs to the configured class target.
+- Keep 70% of the target as normal-condition outputs.
+- Use available images above the 70% normal quota for weather outputs before generating additional samples.
 
 Minority classes:
 
@@ -63,8 +64,9 @@ Minority classes:
 
 Policy:
 
-- Generate variants using Horizontal Flip, Rotation, Shift/Scale, Perspective Transform, Brightness/Contrast, and Coarse Dropout.
-- Combine generated variants with environment simulation until quotas are filled.
+- If the class has fewer than 70% of the target, generate variants using Horizontal Flip, Rotation, Shift/Scale, Perspective Transform, Brightness/Contrast, and Coarse Dropout until the normal quota reaches 70%.
+- After the normal quota is filled, combine available or generated variants with environment simulation until the remaining 30% weather quota is filled.
+- If the class has more than 70% but less than 100% of the target, use the excess over 70% for weather outputs first, then generate only the remaining shortfall.
 
 `data/balanced/` is a train-only intermediate workspace. It must not contain validation or test data.
 
@@ -81,12 +83,18 @@ The Base Pipeline is used for validation, test, and deployment normalization.
 
 Offline augmentation is quota-based and applies only to `train`.
 
-| Bucket | Ratio | Example for 7,000 images/class |
+| Bucket | Ratio | Example for target class size |
 |--------|-------|--------------------------------|
-| `normal` | 70% | 4,900 |
-| `rain` | 10% | 700 |
-| `sun` | 10% | 700 |
-| `night` | 10% | 700 |
+| `normal` | 70% | `round(target * 0.70)` |
+| `rain` | 10% | `round(target * 0.10)` |
+| `sun` | 10% | `round(target * 0.10)` |
+| `night` | 10% | remaining images |
+
+Class fill rule:
+
+- Below 70% of target: fill `normal` to 70% with geometric/content variants first, then create 30% weather outputs.
+- Between 70% and 100% of target: reserve 70% as `normal`, use the available excess for weather outputs, then generate only the missing weather outputs.
+- At or above target: cap to the target distribution without over-generation.
 
 Validation and test are pass-through Base Pipeline outputs and are not augmented.
 

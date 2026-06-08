@@ -63,12 +63,7 @@ data/
 ├── balanced/
 │   └── <class>/
 └── augmented/
-    ├── train/
-    │   └── <class>/
-    │       ├── normal/
-    │       ├── rain/
-    │       ├── sun/
-    │       └── night/
+    ├── train/<class>/<source>_<bucket>_<orig|geo>_<index>.jpg
     ├── valid_unseen/<class>/
     ├── valid_traincopy/<class>/
     └── test/<class>/
@@ -98,15 +93,21 @@ If a legacy root-level Streamlit `app.py` still exists, it is prototype-only and
 
 Default class quota:
 
-- About **7,000 images/class**.
+- Target images/class defaults to the largest train class size.
 - Configurable by class.
 - Total image count after augmentation depends on configured quotas.
 
 Default environment quota:
 
-| Bucket | Ratio | Example for 7,000 images/class |
+| Bucket | Ratio | Example for target class size |
 |--------|-------|--------------------------------|
-| `normal` | 70% | 4,900 |
-| `rain` | 10% | 700 |
-| `sun` | 10% | 700 |
-| `night` | 10% | 700 |
+| `normal` | 70% | `round(target * 0.70)` |
+| `rain` | 10% | `round(target * 0.10)` |
+| `sun` | 10% | `round(target * 0.10)` |
+| `night` | 10% | remaining images |
+
+Class fill policy:
+
+- Classes at or above target are capped to the target distribution and are not over-generated.
+- Classes below 70% of target use geometric/content transforms to fill `normal` to 70% first, then create 30% weather outputs.
+- Classes between 70% and 100% of target keep 70% as `normal`, use available excess images for weather outputs first, and generate only the remaining shortfall.

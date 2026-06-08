@@ -3,7 +3,7 @@ Data loading utilities for the current VehicleTypeRecognition pipeline.
 
 Canonical dataset root:
     data/augmented/
-      train/<class>/<bucket>/           # training only
+      train/<class>/                    # training only, bucket encoded in file names
       valid_unseen/<class>/             # primary validation
       valid_traincopy/<class>/          # auxiliary check only, optional
       test/<class>/                     # official final evaluation
