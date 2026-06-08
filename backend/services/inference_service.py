@@ -52,8 +52,12 @@ def predict_image(
     if is_yolo:
         results = loaded.model(processed_image, verbose=False)
         probs = results[0].probs
-        topk_conf = probs.top5conf.tolist() if hasattr(probs, 'top5conf') else []
-        topk_idx = probs.top5.tolist() if hasattr(probs, 'top5') else []
+        topk_conf = (
+            probs.top5conf.tolist()
+            if hasattr(probs, 'top5conf') and hasattr(probs.top5conf, 'tolist')
+            else (list(probs.top5conf) if hasattr(probs, 'top5conf') else [])
+        )
+        topk_idx = list(probs.top5) if hasattr(probs, 'top5') else []
 
         if not topk_idx:
             probs_tensor = probs.data
