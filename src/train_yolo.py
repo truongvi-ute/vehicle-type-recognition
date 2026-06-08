@@ -108,6 +108,53 @@ def train_yolo(
     )
     model.val(data=adapter_dir, split="test", imgsz=imgsz, batch=batch)
 
+    # Tự động xuất báo cáo đánh giá định dạng JSON cho Dashboard
+    try:
+        print("\n--- Đang tự động tạo báo cáo đánh giá JSON cho Dashboard ---")
+        best_weights_path = Path(project) / name / "weights" / "best.pt"
+        if not best_weights_path.is_file():
+            # Thử đường dẫn thay thế nếu Ultralytics tự động sinh thêm thư mục runs
+            best_weights_path = Path("runs/classify") / project / name / "weights" / "best.pt"
+            if not best_weights_path.is_file():
+                # Quét mọi file best.pt trong thư mục runs
+                candidate_weights = list(Path().glob("**/weights/best.pt"))
+                if candidate_weights:
+                    best_weights_path = candidate_weights[0]
+
+        if best_weights_path.is_file():
+            print(f"Tìm thấy trọng số tốt nhất tại: {best_weights_path}")
+            from src.evaluate_yolo import evaluate_split
+            from backend.utils.class_names import CLASS_NAMES
+            import json
+
+            best_model = YOLO(str(best_weights_path))
+            data_path = Path(data_dir)
+
+            eval_result = {
+                "checkpoint": str(best_weights_path),
+                "data_dir": data_dir,
+                "class_names": CLASS_NAMES,
+                "primary_metric_split": "valid_unseen",
+                "official_evaluation_split": "test",
+            }
+
+            for split_name in ["valid_unseen", "test", "valid_traincopy"]:
+                split_dir = data_path / split_name
+                if split_dir.is_dir():
+                    eval_result[split_name] = evaluate_split(best_model, split_dir, CLASS_NAMES)
+                else:
+                    eval_result[split_name] = None
+
+            out_file = Path("outputs") / f"evaluation_{name}_best.json"
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(out_file, "w", encoding="utf-8") as f:
+                json.dump(eval_result, f, ensure_ascii=False, indent=2)
+            print(f"Đã tự động lưu file báo cáo đánh giá thành công tại: {out_file}")
+        else:
+            print("Cảnh báo: Không tìm thấy file trọng số best.pt để chạy đánh giá tự động.")
+    except Exception as exc:
+        print(f"Không thể tự động xuất báo cáo đánh giá JSON: {exc}")
+
     if eval_traincopy:
         aux_path = Path(data_dir) / AUX_VALID_SPLIT
         if not aux_path.is_dir():
