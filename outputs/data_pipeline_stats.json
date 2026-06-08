@@ -1,0 +1,147 @@
+{
+  "split": {
+    "bicycle": {
+      "train": 1375,
+      "valid_unseen": 81,
+      "valid_traincopy": 81,
+      "test": 162
+    },
+    "boat": {
+      "train": 7562,
+      "valid_unseen": 445,
+      "valid_traincopy": 445,
+      "test": 890
+    },
+    "bus": {
+      "train": 3455,
+      "valid_unseen": 203,
+      "valid_traincopy": 203,
+      "test": 406
+    },
+    "car": {
+      "train": 7259,
+      "valid_unseen": 427,
+      "valid_traincopy": 427,
+      "test": 854
+    },
+    "helicopter": {
+      "train": 568,
+      "valid_unseen": 33,
+      "valid_traincopy": 33,
+      "test": 67
+    },
+    "minibus": {
+      "train": 1255,
+      "valid_unseen": 74,
+      "valid_traincopy": 74,
+      "test": 148
+    },
+    "motorcycle": {
+      "train": 3772,
+      "valid_unseen": 222,
+      "valid_traincopy": 222,
+      "test": 444
+    },
+    "taxi": {
+      "train": 772,
+      "valid_unseen": 45,
+      "valid_traincopy": 45,
+      "test": 91
+    },
+    "train": {
+      "train": 1430,
+      "valid_unseen": 84,
+      "valid_traincopy": 84,
+      "test": 168
+    },
+    "truck": {
+      "train": 3157,
+      "valid_unseen": 186,
+      "valid_traincopy": 186,
+      "test": 371
+    }
+  },
+  "balanced": {
+    "bicycle": 1375,
+    "boat": 7562,
+    "bus": 3455,
+    "car": 7259,
+    "helicopter": 568,
+    "minibus": 1255,
+    "motorcycle": 3772,
+    "taxi": 772,
+    "train": 1430,
+    "truck": 3157
+  },
+  "augmented": {
+    "bicycle": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "boat": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "bus": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "car": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "helicopter": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "minibus": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "motorcycle": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "taxi": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "train": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "truck": {
+      "normal": 4900,
+      "rain": 700,
+      "sun": 700,
+      "night": 700
+    },
+    "__copied_valid_unseen": {
+      "total": 1800
+    },
+    "__copied_valid_traincopy": {
+      "total": 1800
+    },
+    "__copied_test": {
+      "total": 3601
+    }
+  }
+}

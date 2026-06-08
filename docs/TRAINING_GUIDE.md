@@ -1,75 +1,93 @@
-# 🏋️ Huấn Luyện Mô Hỏi & Chiến Lược Đánh Giá (Training & Evaluation Guide)
+# Training Guide
 
-> [!NOTE]  
-> Tài liệu này mô tả chi tiết chiến lược huấn luyện đa giai đoạn, cú pháp lệnh thực thi và cách đánh giá, xử lý sự cố trong quá trình huấn luyện các mô hình.
+This document describes model training and evaluation. The authoritative design is [ARCHITECTURE_FINAL.md](ARCHITECTURE_FINAL.md).
 
----
+## Training Data
 
-## 1. Phương Pháp Tiếp Cận Đa Giai Đoạn (Multi-Phase Fine-Tuning)
+Train on:
 
-Để tận dụng tối đa sức mạnh của Transfer Learning từ các bộ trọng số pre-trained lớn mà không phá vỡ cấu trúc đặc trưng cơ bản đã học được, dự án áp dụng chiến lược huấn luyện hai giai đoạn (**Multi-Phase Freeze/Unfreeze Strategy**):
+- `data/augmented/train`
 
-* **Giai đoạn 1 (Phase 1 - Epoch 1 đến 5)**: 
-  * **Đóng băng Backbone**: Khóa toàn bộ các trọng số của mạng tích chập/Transformer nền tảng.
-  * **Chỉ huấn luyện Classification Head**: Tập trung cập nhật các trọng số ở tầng phân loại cuối cùng (FC layer) để khớp với 10 lớp của Vehicle-10.
-  * **Learning Rate (LR)**: Đặt ở mức lớn (`1e-3`) để đầu ra nhanh chóng hội tụ sơ bộ.
-* **Giai đoạn 2 (Phase 2 - Epoch 6 đến 100)**:
-  * **Mở khóa một phần Backbone**: Giải phóng 1/3 số tầng sâu của mạng để tinh chỉnh sâu hơn (Fine-tuning) các đường nét đặc thù của xe cộ (như bánh xe, cabin, cánh quạt trực thăng).
-  * **Hạ Learning Rate (LR)**: Giảm đi 10 lần (`1e-4` hoặc thấp hơn) nhằm tránh phá hỏng các đặc trưng tổng quát đã học tốt ở Phase 1.
-  * **Tích hợp Early Stopping**: Áp dụng cơ chế dừng sớm với số epoch kiên nhẫn (`patience = 10` đến `15`) dựa trên độ lỗi của tập Validation nhằm chống Overfitting.
+This folder contains quota-based offline-augmented training images.
 
----
+Validation sources:
 
-## 2. Cấu Hình Lệnh Huấn Luyện
+- `data/augmented/valid_unseen`: independent validation, no augmentation.
+- `data/augmented/valid_traincopy`: copied from train, no augmentation, auxiliary only.
 
-Dưới đây là các câu lệnh chính để bắt đầu quá trình huấn luyện cho từng mô hình:
+## Training Strategy
 
-### A. Huấn luyện ResNet-50
+Defaults:
+
+- Maximum 100 epochs unless configured otherwise.
+- Early stopping patience around 10-15 epochs.
+- Transfer learning from suitable pretrained checkpoints.
+- Primary validation signal: `valid_unseen`.
+- Optional auxiliary tracking: `valid_traincopy`.
+
+Do not use `test` during training, tuning, or checkpoint selection.
+
+## Commands
+
+Quick commands:
+
+```bash
+python src/train.py --model resnet50 --data_dir data/augmented --max_epochs 100 --patience 10
+python src/train_vit.py --model vit_base --data_dir data/augmented --max_epochs 100 --patience 10
+python src/train_yolo.py --model yolov8n-cls --data_dir data/augmented --epochs 100 --patience 10
+```
+
+Detailed example commands:
+
 ```bash
 python src/train.py --model resnet50 --data_dir data/augmented --batch_size 64 --max_epochs 100 --patience 10 --lr 1e-3
 ```
-
-### B. Huấn luyện Vision Transformer (ViT)
-> [!IMPORTANT]  
-> Đối với ViT, bắt buộc sử dụng thuật toán tối ưu hóa **AdamW** (để phạt trọng số đúng cách) kết hợp kỹ thuật **Warmup Learning Rate** trong những epoch đầu để tránh sụp đổ gradient.
 
 ```bash
 python src/train_vit.py --model vit_base_patch16_224 --data_dir data/augmented --batch_size 32 --max_epochs 100 --patience 15 --lr 1e-4
 ```
 
-### C. Huấn luyện YOLO-cls
 ```bash
 yolo classify train model=yolov8n-cls.pt data=data/augmented epochs=100 patience=10 batch=128 imgsz=224
 ```
 
----
+## Online Augmentation
 
-## 3. Tiêu Chí Đánh Giá Xuất Ra (Evaluation Metrics)
+Online augmentation applies only to training batches:
 
-Sau khi quá trình huấn luyện hoàn tất, file mô hình tốt nhất (lưu dưới dạng `*_best.pth` hoặc `*_best.pt`) sẽ tự động được kiểm thử độc lập trên tập **Test** để đánh giá chéo hiệu năng thực tế. Các kết quả xuất ra thư mục `outputs/` bao gồm:
+| Model family | Online augmentation |
+|--------------|---------------------|
+| ResNet-50 | MixUp and/or CutMix |
+| Vision Transformer | MixUp and/or CutMix |
+| YOLO-cls | Mosaic if supported |
 
-1. **Ma trận nhầm lẫn (Confusion Matrix)**: 
-   * Được kết xuất dưới dạng file ảnh heatmap `.png` (kích thước 10x10).
-   * Giúp trực quan hóa và phân tích cụ thể mô hình thường xuyên nhầm lẫn giữa các lớp nào nhất (Ví dụ: sự tương đồng hình học cao giữa `Minibus` và `Bus`, hoặc `Car` và `Taxi`).
-2. **Báo cáo phân loại (Classification Report)**:
-   * File `.json` lưu chi tiết các chỉ số chất lượng cho từng lớp và trung bình toàn bộ hệ thống:
-     * **Precision** (Độ chính xác dự đoán): Tỷ lệ các mẫu dự đoán đúng trên tổng số mẫu được dự báo thuộc lớp đó.
-     * **Recall** (Độ phủ thực tế): Tỷ lệ các mẫu dự đoán đúng trên tổng số mẫu thực tế của lớp đó.
-     * **F1-Score**: Trung bình điều hòa giữa Precision và Recall.
+Validation, test, and deployment inference use no augmentation.
 
----
+## Evaluation Strategy
 
-## 4. Xử Lý Sự Cố Kỹ Thuật (Troubleshooting)
+Official reporting order:
 
-Trong quá trình huấn luyện mô hình sâu, có thể xảy ra một số lỗi hệ thống phổ biến:
+1. `test`: primary final metric source.
+2. `valid_unseen`: secondary reference metric.
+3. `valid_traincopy`: auxiliary reference only.
 
-* **Lỗi Out of Memory (OOM) - Tràn bộ nhớ VRAM GPU**:
-  * *Hiện tượng*: PyTorch báo lỗi `CUDA out of memory`.
-  * *Giải pháp*:
-    1. Hạ tham số kích thước batch (`--batch_size`) từ 64 xuống 32, 16 hoặc 8.
-    2. Áp dụng kỹ thuật tích lũy gradient (**Gradient Accumulation**) để duy trì kích thước batch ảo lớn mà không gây quá tải bộ nhớ vật lý.
-* **Lỗi NaN Loss (Nổ Gradient - Gradient Explosion)**:
-  * *Hiện tượng*: Hàm Loss trả về giá trị `NaN` (Not a Number) sau một vài lượt lặp.
-  * *Giải pháp*:
-    1. Giảm tốc độ học ban đầu (`--lr`) xuống 5 đến 10 lần.
-    2. Kích hoạt tính năng kẹp biên độ gradient (**Gradient Clipping**) bằng hàm `torch.nn.utils.clip_grad_norm_` trước bước cập nhật optimizer.
+Recommended metrics:
+
+- Accuracy.
+- Macro F1.
+- Per-class Precision, Recall, and F1-score.
+- Confusion matrix.
+- Classification report.
+
+Evaluation preprocessing:
+
+- Base Pipeline only.
+- Resize with preserved aspect ratio.
+- Zero-pad to **224x224**.
+
+## Troubleshooting Signals
+
+- If `valid_traincopy` is high but `valid_unseen` or `test` is low, treat it as overfitting or memorization risk.
+- If minority class F1 is low, review class quotas and minority augmentation.
+- If Flask + React deployment predictions differ from evaluation behavior, verify that the Flask API uses the same Base Pipeline.
+- A legacy Streamlit `app.py`, if present, is prototype-only and not the official production demo.

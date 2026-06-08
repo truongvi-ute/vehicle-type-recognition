@@ -1,46 +1,118 @@
-# 🚀 Triển Khai Giao Diện & Ứng Dụng (Deployment)
+# Deployment Guide
 
-> [!NOTE]  
-> Tài liệu này hướng dẫn cách khởi động giao diện Dashboard kiểm thử thời gian thực bằng Streamlit, các tính năng chính của ứng dụng và cách khắc phục một số lỗi môi trường phổ biến.
+This document describes the official Flask + React deployment direction. The authoritative design is [ARCHITECTURE_FINAL.md](ARCHITECTURE_FINAL.md).
 
----
+Streamlit is no longer the primary deployment path. If a legacy Streamlit `app.py` still exists, it is treated only as a prototype, not the production demo.
 
-## 1. Khởi Động Giao Diện
+## Run the Demo
 
-Chúng ta sử dụng thư viện **Streamlit** để tạo một Dashboard kiểm thử trực quan và nhanh chóng. Để khởi chạy ứng dụng, hãy mở cửa sổ terminal tại thư mục gốc của dự án và thực thi lệnh sau:
+Backend:
 
-```powershell
-streamlit run app.py
+```bash
+cd backend
+pip install -r requirements.txt
+python app.py
 ```
 
-Sau khi chạy lệnh, giao diện web sẽ tự động được khởi tạo và mở trên trình duyệt mặc định của bạn tại địa chỉ:
-👉 **[http://localhost:8501](http://localhost:8501)**
+Frontend:
 
----
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## 2. Tính Năng Giao Diện Dashboard
+## Deployment Flow
 
-Giao diện ứng dụng được thiết kế tối giản, trực quan và chia làm các khu vực chức năng chính:
+```text
+React UI -> Flask API -> Base Pipeline preprocessing -> Model inference -> JSON response -> React visualization
+```
 
-* **Cấu hình AI (Thanh Sidebar bên trái)**:
-  * Cho phép người dùng linh hoạt chọn một trong ba kiến trúc mạng đã huấn luyện để chạy suy luận (`ResNet-50`, `Vision Transformer`, hoặc `YOLO-cls`).
-  * **Cơ chế bảo vệ Training-Serving Skew**: Ứng dụng tự động quét và áp dụng đúng cấu hình tiền xử lý/pipeline lọc mà mô hình đó đã được sử dụng trong giai đoạn huấn luyện (đọc từ file cấu hình best checkpoint tương ứng).
-* **Khu vực tải ảnh & Đối sánh trực quan**:
-  * Người dùng có thể kéo thả hoặc chọn tải lên một ảnh phương tiện bất kỳ từ máy tính.
-  * Màn hình sẽ hiển thị trực tiếp hai khung hình song song:
-    * **Ảnh gốc** ở phía bên trái.
-    * **Ảnh sau khi đi qua pipeline tiền xử lý OpenCV** ở phía bên phải để người dùng quan sát rõ sự khác biệt của bộ lọc miền không gian.
-* **Kết quả Nhận diện**:
-  * Hiển thị bảng xếp hạng **Top-3 dự đoán** có độ tin cậy cao nhất từ mô hình AI đã chọn.
-  * Trực quan hóa phần trăm điểm số tin cậy (Confidence Score) dưới dạng biểu đồ cột động.
+## Backend Responsibilities
 
----
+The backend uses Flask as a REST API server.
 
-## 3. Lỗi Môi Trường Thường Gặp & Cách Khắc Phục
+Flask responsibilities:
 
-* **Không tìm thấy file trọng số (Model Weight Not Found)**:
-  * *Nguyên nhân*: Ứng dụng Streamlit không tìm thấy file trọng số mô hình `.pth` hoặc `.pt` trong thư mục `models/`.
-  * *Khắc phục*: Đảm bảo bạn đã hoàn thành việc huấn luyện mô hình (chạy file `src/train.py`, `src/train_vit.py`, hoặc `src/train_yolo.py`) để sinh ra checkpoint tốt nhất trước khi khởi động ứng dụng demo.
-* **Lỗi chỉ mục phân lớp (Class Index Mismatch)**:
-  * *Nguyên nhân*: Số lượng hoặc tên lớp của ảnh đầu vào suy luận không tương thích với cấu hình đầu ra của mô hình.
-  * *Khắc phục*: Đảm bảo rằng cấu trúc thư mục con trong `data/raw/` duy trì chuẩn xác tên viết thường (lowercase) của 10 lớp phương tiện gốc (`bicycle`, `boat`, `bus`, `car`, `helicopter`, `minibus`, `motorcycle`, `taxi`, `train`, `truck`) vì hệ thống sử dụng tên thư mục con này để định danh các nhãn lớp logic.
+- Load trained model checkpoints from `models/`.
+- Receive uploaded images from the React frontend.
+- Apply the Base Pipeline exactly as used in evaluation.
+- Run inference with the selected model.
+- Return JSON containing top-3 predicted classes, confidence scores, model name, and processing time when available.
+
+Example JSON shape:
+
+```json
+{
+  "model_name": "resnet50",
+  "processing_time_ms": 42.5,
+  "predictions": [
+    {"class": "car", "confidence": 0.91},
+    {"class": "taxi", "confidence": 0.06},
+    {"class": "minibus", "confidence": 0.02}
+  ],
+  "preprocessed_image": "optional-base64-or-url"
+}
+```
+
+## Frontend Responsibilities
+
+The frontend uses React.
+
+React responsibilities:
+
+- Let users choose a model.
+- Upload an image.
+- Preview the original image.
+- Display the preprocessed image if the backend returns it.
+- Display top-3 predictions.
+- Display a confidence chart.
+- Provide a more flexible UI than the legacy Streamlit prototype.
+
+## Deployment Preprocessing
+
+Deployment input must use the same Base Pipeline as evaluation:
+
+1. Resize while preserving aspect ratio.
+2. Zero-pad to **224x224**.
+
+No offline or online augmentation is applied during inference.
+
+Demo predictions are inference outputs, not official evaluation metrics.
+
+## Proposed Deployment Structure
+
+```text
+VehicleTypeRecognition/
+├── backend/
+│   ├── app.py
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   └── requirements.txt
+├── frontend/
+│   ├── package.json
+│   ├── src/
+│   └── public/
+├── models/
+├── outputs/
+├── data/
+├── src/
+└── docs/
+```
+
+## Metric Reporting Policy
+
+Official model quality must be reported from:
+
+1. `test`
+2. `valid_unseen`
+
+`valid_traincopy` is auxiliary only and must not be used as final deployment-quality evidence.
+
+## Common Checks
+
+- Model weights should exist in `models/`.
+- Class names should match the 10 Vehicle-10 classes.
+- Flask preprocessing should match the Base Pipeline.
+- React should visualize the JSON response without changing inference results.

@@ -1,45 +1,100 @@
-# 📉 Chiến Lược Xử Lý & Cân Bằng Dữ Liệu (Data Strategy)
+# Data Strategy
 
-> [!NOTE]  
-> Tài liệu này chi tiết hóa giải pháp giải quyết hai bài toán cốt lõi: ngăn chặn lỗi rò rỉ dữ liệu (**Data Leakage**) và khắc phục hiện tượng mất cân bằng lớp dữ liệu (**Class Imbalance**) nghiêm trọng của bộ dữ liệu Vehicle-10.
+This document details split policy, class balancing, and leakage prevention. The authoritative design is [ARCHITECTURE_FINAL.md](ARCHITECTURE_FINAL.md).
 
----
+## Split First Protocol
 
-## 1. Giao Thức Chia Tập "Split First Protocol"
+All original images are split before balancing or augmentation.
 
-Để chặn đứng lỗi **Data Leakage (rò rỉ dữ liệu)** — hiện tượng dữ liệu kiểm thử hoặc thông tin từ tập xác thực xuất hiện gián tiếp trong quá trình huấn luyện do các phép biến đổi hình học hoặc tăng cường mẫu chung — toàn bộ dữ liệu gốc buộc phải phân chia tập trước khi xử lý:
+Independent original split:
 
-* **Tập Train (85% - 30,605 ảnh)**: Duy nhất tập này được đi qua luồng cân bằng (balancing) và tăng cường dữ liệu vật lý (augmentation).
-* **Tập Valid (5% - 1,800 ảnh) & Tập Test (10% - 3,601 ảnh)**: Giữ nguyên bản gốc. Chỉ chạy duy nhất qua luồng tiền xử lý cơ bản (Base normalization - chuẩn hóa kích thước 224x224 và bù padding), tuyệt đối không áp dụng các bộ lọc tăng cường, xoay, lật hay nhiễu để đảm bảo tính khách quan khi đánh giá.
+| Split | Ratio | Approx. count | Role | Augmentation |
+|-------|-------|---------------|------|--------------|
+| `train` | 85% | ~30,605 | Training source | Yes, after balancing |
+| `valid_unseen` | 5% | ~1,800 | Independent validation | No |
+| `test` | 10% | ~3,601 | Final evaluation | No |
 
----
+Auxiliary validation:
 
-## 2. Chiến Lược Cân Bằng Dữ Liệu (Class Balancing)
+| Set | Source | Role | Augmentation |
+|-----|--------|------|--------------|
+| `valid_traincopy` | Copied from `train` | Instructor-required reference only | No |
 
-Vì bộ dữ liệu gốc mất cân bằng nặng (tỷ lệ 13.3:1), chúng ta áp dụng phương pháp cân bằng lại số lượng mẫu giữa các lớp phương tiện trên tập **Train**.
+`valid_traincopy` is not an independent split and does not add another percentage to the original 85/5/10 split.
 
-Mọi lớp phương tiện được nâng quy mô mẫu (Oversampling) đồng đều về con số của lớp lớn nhất ($N_{target} = 7,117$ ảnh của lớp `boat`) thông qua hệ số nhân bản $K$:
+## Metric Reporting Policy
 
-$$K = \left\lceil \frac{N_{target}}{N_{current}} \right\rceil$$
+Official reporting order:
 
-### Quy trình chi tiết:
-1. Xác định số lượng mẫu mục tiêu $N_{target}$ (trong trường hợp này là lớp `boat` với 7,117 mẫu).
-2. Với mỗi lớp $C$, tính hệ số nhân bản $K$ bằng cách lấy trần phép chia mẫu mục tiêu cho số lượng mẫu hiện tại.
-3. Nhân bản dữ liệu của lớp đó lên $K$ lần.
-4. Lấy mẫu ngẫu nhiên (down-sample) không hoàn lại đúng $N_{target}$ ảnh từ tập dữ liệu vừa được nhân bản.
+1. `test`: primary final metric source.
+2. `valid_unseen`: secondary reference metric.
+3. `valid_traincopy`: auxiliary reference only.
 
-**Kết quả:** Sau khi cân bằng, tổng số lượng mẫu tập Train đạt **71,170 ảnh** chia đều tuyệt đối cho 10 lớp (mỗi lớp 7,117 ảnh).
+Do not use `test` for early stopping, hyperparameter tuning, augmentation design, or checkpoint selection.
 
----
+## Class Balancing
 
-## 3. Tăng Cường Dữ Liệu Trực Tuyến (Online Augmentation)
+Class balancing applies only to `train`.
 
-Bên cạnh việc tăng cường offline trên đĩa cứng, hệ thống tích hợp các kỹ thuật tăng cường trực tuyến (Online Augmentation) trong lúc huấn luyện nhằm tăng độ tổng quát hóa của mô hình:
+Default target:
 
-### A. Đối với ResNet-50 & Vision Transformer (ViT)
-Sử dụng hai kỹ thuật trộn ảnh hiện đại cấu hình qua thư viện `torchvision.transforms.v2`:
-* **MixUp**: Trộn hai ảnh ngẫu nhiên trong batch đè lên nhau theo một tỷ lệ $\lambda$ ngẫu nhiên (lấy từ phân phối Beta), nhãn của ảnh mới cũng được làm mịn theo tỷ lệ tương ứng. Giúp mô hình học được ranh giới quyết định liên tục.
-* **CutMix**: Cắt một phần vùng chữ nhật từ bức ảnh này dán chéo sang bức ảnh kia. Giúp mô hình không chỉ tập trung vào một đặc trưng cục bộ dễ nhận thấy mà học cách quét toàn bộ cấu trúc vật thể.
+- About **7,000 images/class**.
+- Configurable by class.
+- Final dataset size depends on configured quotas.
 
-### B. Đối với YOLO-cls
-* Kích hoạt cơ chế **Mosaic** (`mosaic=1.0`). Cơ chế này ghép 4 bức ảnh ngẫu nhiên thành 1 khung hình với tỉ lệ thu phóng khác nhau, tạo ra bối cảnh nền phong phú và đa dạng kích thước vật thể, tối ưu hóa mạnh mẽ khả năng bao quát không gian của mạng YOLO.
+Large classes:
+
+- `boat`
+- `car`
+
+Policy:
+
+- Avoid excessive generation.
+- Select, cap, or distribute available images into environment buckets.
+- Generate additional samples only for missing bucket quota.
+
+Minority classes:
+
+- `helicopter`
+- `taxi`
+- `train`
+- `bicycle`
+- `minibus`
+
+Policy:
+
+- Generate variants using Horizontal Flip, Rotation, Shift/Scale, Perspective Transform, Brightness/Contrast, and Coarse Dropout.
+- Combine generated variants with environment simulation until quotas are filled.
+
+`data/balanced/` is a train-only intermediate workspace. It must not contain validation or test data.
+
+## Base Pipeline
+
+Base Pipeline:
+
+1. Resize while preserving aspect ratio.
+2. Zero-pad to **224x224**.
+
+The Base Pipeline is used for validation, test, and deployment normalization.
+
+## Offline Augmentation Policy
+
+Offline augmentation is quota-based and applies only to `train`.
+
+| Bucket | Ratio | Example for 7,000 images/class |
+|--------|-------|--------------------------------|
+| `normal` | 70% | 4,900 |
+| `rain` | 10% | 700 |
+| `sun` | 10% | 700 |
+| `night` | 10% | 700 |
+
+Validation and test are pass-through Base Pipeline outputs and are not augmented.
+
+## Leakage Prevention Checklist
+
+- Split before balancing and augmentation.
+- Keep `test` independent and untouched until final evaluation.
+- Keep `valid_unseen` independent.
+- Label `valid_traincopy` clearly as copied from train.
+- Never augment validation or test sets.
+- Never report `valid_traincopy` as official generalization performance.

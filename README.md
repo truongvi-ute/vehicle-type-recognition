@@ -1,184 +1,175 @@
-# Nhận Diện Phương Tiện Giao Thông (Vehicle Type Recognition)
+# Vehicle Type Recognition
 
-Hệ thống phân loại phương tiện giao thông tiên tiến sử dụng 3 kiến trúc Deep Learning: **ResNet-50** (CNN Baseline), **Vision Transformer (ViT)** (Self-Attention toàn cục), và **YOLO-cls** (Tốc độ cao) kết hợp với chiến lược Data Augmentation Offline/Online toàn diện.
+VehicleTypeRecognition is an image classification project for 10 vehicle classes using ResNet-50, Vision Transformer, and YOLO-cls.
 
-## Tổng quan Dataset
+The project architecture is defined in [docs/ARCHITECTURE_FINAL.md](docs/ARCHITECTURE_FINAL.md). That file is the Single Source of Truth for dataset policy, split strategy, augmentation, training, evaluation, deployment, and project structure.
 
-**Dataset Vehicle-10** bao gồm **36,006 ảnh** phương tiện được phân loại vào **10 lớp**:
+## Dataset
 
-| Lớp | Tên tiếng Việt | Số ảnh Train | Số ảnh Valid | Số ảnh Test |
-|-----|----------------|--------------|--------------|-------------|
-| bicycle | Xe đạp | ~1,296 | ~144 | ~162 |
-| boat | Thuyền/Tàu | ~7,117 | ~790 | ~890 |
-| bus | Xe buýt | ~3,252 | ~361 | ~406 |
-| car | Ô tô | ~6,832 | ~759 | ~854 |
-| helicopter | Trực thăng | ~534 | ~59 | ~67 |
-| minibus | Xe khách nhỏ | ~1,181 | ~131 | ~148 |
-| motorcycle | Xe mô tô | ~3,550 | ~394 | ~444 |
-| taxi | Taxi | ~726 | ~81 | ~91 |
-| train | Tàu hỏa | ~1,346 | ~150 | ~169 |
-| truck | Xe tải | ~2,971 | ~330 | ~371 |
-| **TỔNG** | | **30,605** | **1,800** | **3,601** |
+Vehicle-10 contains **36,006 RGB images** in 10 classes:
 
-**Tỷ lệ phân chia:**
-- **Train:** 85% (30,605 ảnh)
-- **Valid:** 5% (1,800 ảnh) — bao gồm cả _unseen (ảnh mới) và _copy (copy từ train)
-- **Test:** 10% (3,601 ảnh) — tập đánh giá độc lập hoàn toàn
+| Class | Data group |
+|-------|------------|
+| `bicycle` | Minority |
+| `boat` | Large |
+| `bus` | Medium |
+| `car` | Large |
+| `helicopter` | Minority |
+| `minibus` | Minority |
+| `motorcycle` | Medium |
+| `taxi` | Minority |
+| `train` | Minority |
+| `truck` | Medium |
 
-**Đặc điểm:**
-- Ảnh màu RGB, độ phân giải đa dạng từ 47×36px đến 4101×2651px
-- Đã được chuẩn hóa về kích thước 224×224px với padding viền đen (giữ nguyên aspect ratio)
-- Áp dụng pipeline tiền xử lý `baseline_v1` (Resize + Padding, không filter thêm)
+## Split Strategy
 
-## Cấu trúc thư mục
+Independent original split:
 
-```
+| Split | Ratio | Approx. count | Role |
+|-------|-------|---------------|------|
+| `train` | 85% | ~30,605 | Training source |
+| `valid_unseen` | 5% | ~1,800 | Independent validation |
+| `test` | 10% | ~3,601 | Final evaluation |
+
+Auxiliary validation:
+
+- `valid_traincopy`: copied from `train`, about the same working scale as validation unless configured otherwise.
+- It is not an independent split and does not change the 85/5/10 split math.
+- It exists only for instructor-required reference checks.
+
+Official reporting priority:
+
+1. `test`
+2. `valid_unseen`
+3. `valid_traincopy` only as auxiliary reference
+
+## Data Pipeline
+
+Base Pipeline:
+
+1. Resize while preserving aspect ratio.
+2. Zero-pad to **224x224**.
+
+Class balancing and offline augmentation are applied only to `train`.
+
+Default class quota:
+
+- About **7,000 images/class**.
+- Final dataset size depends on configured class quotas.
+
+Default environment quota:
+
+| Bucket | Ratio | Example for 7,000 images/class |
+|--------|-------|--------------------------------|
+| `normal` | 70% | 4,900 |
+| `rain` | 10% | 700 |
+| `sun` | 10% | 700 |
+| `night` | 10% | 700 |
+
+Large classes such as `boat` and `car` are not over-generated. Minority classes such as `helicopter`, `taxi`, `train`, `bicycle`, and `minibus` use additional transforms to fill quotas.
+
+## Project Structure
+
+```text
 VehicleTypeRecognition/
+├── backend/
+│   ├── app.py
+│   ├── routes/
+│   ├── services/
+│   ├── utils/
+│   └── requirements.txt
+├── frontend/
+│   ├── package.json
+│   ├── src/
+│   └── public/
+├── models/
+├── outputs/
 ├── data/
-│   ├── raw/                          # Dữ liệu ảnh gốc (36,006 ảnh)
-│   ├── splits/                       # Sau split (85%-5%-10%)
-│   │   ├── train/                    # 30,605 ảnh
-│   │   ├── valid/                    # 1,800 ảnh
-│   │   └── test/                     # 3,601 ảnh
-│   ├── balanced/                     # Sau cân bằng class (~70K ảnh train)
-│   └── augmented/                    # Sau offline augmentation (4 pipelines)
-│       ├── train/<class>/            # ~280K+ ảnh (balanced × 4 pipelines)
-│       ├── valid/<class>/            # 1,800 ảnh (không augment)
-│       └── test/<class>/             # 3,601 ảnh (không augment)
-├── models/                           # Trọng số đã train (.pth, .pt)
-├── outputs/                          # Confusion matrix, curves, metrics
+│   ├── raw/<class>/
+│   ├── splits/
+│   │   ├── train/<class>/
+│   │   ├── valid_unseen/<class>/
+│   │   ├── valid_traincopy/<class>/
+│   │   └── test/<class>/
+│   ├── balanced/<class>/
+│   └── augmented/
+│       ├── train/<class>/
+│       │   ├── normal/
+│       │   ├── rain/
+│       │   ├── sun/
+│       │   └── night/
+│       ├── valid_unseen/<class>/
+│       ├── valid_traincopy/<class>/
+│       └── test/<class>/
 ├── src/
-│   ├── data_split.py                 # Split 85%-5%-10% (Split First)
-│   ├── balance_classes.py            # Cân bằng class imbalance
-│   ├── augment_offline.py            # 4 pipelines: Base/Night/Rain/Sun
-│   ├── dataset.py                    # DataLoader + Online Augmentation
-│   ├── train.py                      # ResNet-50 training
-│   ├── train_vit.py                  # Vision Transformer training
-│   ├── train_yolo.py                 # YOLO-cls training
-│   └── evaluate.py                   # Metrics, Confusion Matrix, Curves
-├── docs/                             # Tài liệu chi tiết
-│   ├── DATA_STRATEGY.md              # Chiến lược dữ liệu mới
-│   ├── AUGMENTATION.md               # Chi tiết 4 pipelines + online aug
-│   ├── MODEL_COMPARISON.md           # So sánh 3 kiến trúc
-│   └── ...
-├── app.py                            # Giao diện Streamlit
+├── docs/
 ├── requirements.txt
 └── README.md
 ```
 
-## Hướng dẫn cài đặt & Chạy
+`data/augmented/` is the training-ready dataset root. Only `data/augmented/train/` contains offline-augmented images; validation and test folders are Base Pipeline outputs without augmentation.
 
-### 1. Cài đặt thư viện
+`backend/app.py` is the official Flask API entry point. A root-level Streamlit `app.py`, if still present, is legacy/prototype only and is not the production demo.
+
+## Quick Start
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Tải dataset (nếu chưa có)
-Link dataset gốc: [Google Drive](https://drive.google.com/file/d/1pNmm9RjcdTJVRl8_uv-Cs5-CahkROKHs/view?usp=sharing)
-
-Giải nén vào thư mục `data/raw/`
-
-### 3. Tiền xử lý & Cân bằng dữ liệu
 ```bash
-# Bước 1: Split dataset TRƯỚC (85%-5%-10%)
 python src/data_split.py --raw_dir data/raw --output_dir data/splits --seed 42
-
-# Bước 2: Cân bằng class (nhân bản thiểu số lên ~7K)
 python src/balance_classes.py --input_dir data/splits/train --output_dir data/balanced
-
-# Bước 3: Augmentation Offline (4 pipelines: Base, Night, Rain, Sun)
-python src/augment_offline.py --input_dir data/balanced --output_dir data/augmented --pipelines all
-
-# Kết quả: data/augmented/ chứa ảnh đã cân bằng + augment
+python src/augment_offline.py --input_dir data/balanced --output_dir data/augmented
 ```
 
-### 4. Huấn luyện mô hình
 ```bash
-# ResNet-50 (CNN Baseline)
 python src/train.py --model resnet50 --data_dir data/augmented --max_epochs 100 --patience 10
-
-# Vision Transformer (Self-Attention)
 python src/train_vit.py --model vit_base --data_dir data/augmented --max_epochs 100 --patience 10
-
-# YOLO-cls (Tốc độ cao)
 python src/train_yolo.py --model yolov8n-cls --data_dir data/augmented --epochs 100 --patience 10
 ```
 
-**Output:**
-- Trọng số tốt nhất: `models/<model_name>_best.pth`
-- Confusion Matrix: `outputs/confusion_matrix_<model>.png`
-- Loss/Acc curves: `outputs/training_curves_<model>.png`
-- Metrics report: `outputs/metrics_<model>.json` (Precision/Recall/F1)
+## Deployment Demo
 
-### 5. Chạy ứng dụng Demo
+Flask backend:
+
 ```bash
-streamlit run app.py
+cd backend
+pip install -r requirements.txt
+python app.py
 ```
 
-Trình duyệt sẽ mở tại `http://localhost:8501`
+React frontend:
 
-## Tài liệu chi tiết
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-Xem thư mục `docs/` để tìm hiểu sâu hơn về từng module:
+Deployment flow:
 
-- **[DATA_STRATEGY.md](docs/DATA_STRATEGY.md)** — Chiến lược Split First + Class Balancing + Offline/Online Augmentation
-- **[AUGMENTATION.md](docs/AUGMENTATION.md)** — Chi tiết 4 pipelines (Base/Night/Rain/Sun) + MixUp/CutMix/Mosaic
-- **[MODEL_COMPARISON.md](docs/MODEL_COMPARISON.md)** — So sánh ResNet-50 vs ViT vs YOLO-cls
-- **[TRAINING_GUIDE.md](docs/TRAINING_GUIDE.md)** — Huấn luyện 3 kiến trúc, Early Stopping, Metrics
-- **[DATASET_INFO.md](docs/DATASET_INFO.md)** — Thông tin chi tiết Vehicle-10 dataset
-- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** — Hướng dẫn triển khai Streamlit App, tính năng và lỗi thường gặp
+```text
+React UI -> Flask API -> Base Pipeline preprocessing -> Model inference -> JSON response -> React visualization
+```
 
+For detailed training hyperparameters, see [docs/TRAINING_GUIDE.md](docs/TRAINING_GUIDE.md).
 
-## Kiến trúc mô hình
+## Model Roles
 
-Dự án so sánh 3 kiến trúc Deep Learning tiên tiến:
+| Model | Role |
+|-------|------|
+| ResNet-50 | Stable CNN baseline |
+| Vision Transformer | Global-context comparison model |
+| YOLO-cls | Fast inference comparison model |
 
-| Mô hình | Tham số | Cơ chế chính | Vai trò |
-|---------|---------|--------------|---------|
-| **ResNet-50** | ~24.5M | Skip Connections (CNN) | Baseline ổn định |
-| **Vision Transformer (ViT)** | ~86M | Self-Attention toàn cục | Trích xuất bối cảnh global |
-| **YOLO-cls** | ~3-7M | CSPDarknet + SPP | Tốc độ suy luận cực nhanh |
+## Documentation
 
-**Chiến lược huấn luyện:**
-- **Giới hạn:** Tối đa 100 epochs
-- **Early Stopping:** Patience = 10 epochs (tự động dừng khi hội tụ)
-- **Transfer Learning:** Pre-trained trên ImageNet (ResNet, ViT) / COCO (YOLO)
-- **Fine-tuning:** Đa giai đoạn với Learning Rate Scheduling
-
-## Tính năng nổi bật
-
-### 🎯 Chiến lược Dữ liệu
-✅ **Split First Protocol** — Chia tách 85%-5%-10% TRƯỚC khi augment (ngăn Data Leakage)  
-✅ **Class Balancing** — Nhân bản class thiểu số lên mức boat (~7K ảnh) bằng thuật toán $K = \lceil N_{target} / N_{current} \rceil$  
-✅ **4 Pipeline Offline** — Base, Night, Rain, Sun + biến đổi hình học (sinh file vật lý)  
-✅ **Online Augmentation** — MixUp + CutMix (ResNet/ViT), Mosaic (YOLO)
-
-### 🤖 Huấn luyện & Đánh giá
-✅ **3 Kiến trúc** — ResNet-50 (CNN), ViT (Transformer), YOLO-cls (Speed)  
-✅ **Early Stopping** — Patience=10, tối đa 100 epochs  
-✅ **Confusion Matrix** — Biểu đồ nhiệt 10×10 tự động  
-✅ **Metrics đầy đủ** — Precision, Recall, F1-Score cho từng class  
-✅ **Loss/Acc Curves** — Trực quan hóa quá trình training
-
-### 🚀 Triển khai
-✅ **Smart Processing** — Manifest tracking, chỉ xử lý ảnh thay đổi  
-✅ **Giao diện Streamlit** — Demo real-time với upload ảnh  
-✅ **Multi-model Support** — Chuyển đổi giữa 3 kiến trúc dễ dàng
-
-## Công nghệ sử dụng
-
-- **Deep Learning:** PyTorch, torchvision, timm (ViT), ultralytics (YOLO)
-- **Computer Vision:** OpenCV (cv2), Albumentations, PIL
-- **Data Science:** NumPy, pandas, scikit-learn
-- **Augmentation:** Albumentations (Offline), Mixup/CutMix (Online)
-- **Visualization:** Matplotlib, Seaborn, Plotly
-- **Web App:** Streamlit
-- **Metrics:** sklearn.metrics (Precision/Recall/F1, Confusion Matrix)
-
-## Liên hệ & Đóng góp
-
-Dự án được phát triển cho môn Xử lý Ảnh Số. Mọi góp ý và cải tiến xin gửi qua Issues hoặc Pull Requests.
-
----
-
-**Cập nhật:** 26/05/2026 | **Phiên bản:** 2.0
+- [docs/ARCHITECTURE_FINAL.md](docs/ARCHITECTURE_FINAL.md): Single Source of Truth.
+- [docs/DATASET_INFO.md](docs/DATASET_INFO.md): Dataset overview.
+- [docs/DATA_STRATEGY.md](docs/DATA_STRATEGY.md): Split, balancing, and leakage rules.
+- [docs/AUGMENTATION.md](docs/AUGMENTATION.md): Offline and online augmentation.
+- [docs/TRAINING_GUIDE.md](docs/TRAINING_GUIDE.md): Training and evaluation.
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): Flask + React deployment.
+- [docs/MODEL_COMPARISON.md](docs/MODEL_COMPARISON.md): Model comparison.
+- [docs/AUDIT_REPORT.md](docs/AUDIT_REPORT.md): Documentation audit status.
