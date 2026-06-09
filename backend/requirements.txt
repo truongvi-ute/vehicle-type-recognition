@@ -5,3 +5,4 @@ pillow==11.3.0
 torch
 torchvision
 ultralytics==8.4.62
+scikit-learn
