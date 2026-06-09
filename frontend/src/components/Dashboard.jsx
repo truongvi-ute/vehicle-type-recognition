@@ -8,6 +8,18 @@ import {
   fetchDataprep, fetchSplitMetrics, fetchTopErrors
 } from "../api/metricsApi";
 
+const MODEL_DISPLAY_NAMES = {
+  "yolo_cls": "YOLO v8 Classifier (Best)",
+  "resnet50": "ResNet-50 Classifier",
+  "vit": "Vision Transformer (ViT)",
+};
+
+const MODEL_FILE_PATTERNS = {
+  "yolo_cls": ["yolo", "results.csv"],
+  "resnet50": ["resnet50"],
+  "vit": ["vit"]
+};
+
 function Dashboard() {
   const [runs, setRuns] = useState([]);
   const [summary, setSummary] = useState([]);
@@ -15,6 +27,7 @@ function Dashboard() {
   
   const [selectedCurveRun, setSelectedCurveRun] = useState("");
   const [selectedReportRun, setSelectedReportRun] = useState("");
+  const [selectedModel, setSelectedModel] = useState("yolo_cls"); // Default model
   
   const [curvesData, setCurvesData] = useState([]);
   const [reportData, setReportData] = useState(null);
@@ -26,7 +39,60 @@ function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Load runs list, summaries and dataprep counts
+  // Extract unique models from the runs and summaries available
+  const uniqueModels = Array.from(new Set([
+    ...summary.map(s => s.model),
+    ...runs
+      .filter(r => r.filename.includes("evaluation") || r.filename.includes("metrics") || r.filename.includes("history") || r.filename.endsWith(".csv"))
+      .map(r => {
+        let name = r.filename
+          .replace("evaluation_", "")
+          .replace("history_", "")
+          .replace("_best", "")
+          .replace(".json", "")
+          .replace(".csv", "");
+        return name;
+      })
+  ])).filter(m => m && m.toLowerCase() !== "dataprep" && m.toLowerCase() !== "data_prep" && m.toLowerCase() !== "results");
+
+  const availableModels = uniqueModels.length > 0 ? uniqueModels : ["yolo_cls", "resnet50"];
+
+  // Sync sub-tab runs when selectedModel changes
+  useEffect(() => {
+    if (!runs.length) return;
+
+    const patterns = MODEL_FILE_PATTERNS[selectedModel] || [selectedModel];
+
+    // 1. Find curve/history run matching selected model
+    const historyRun = runs.find(r => {
+      const isHistoryOrCsv = r.filename.includes("history") || r.filename.endsWith(".csv");
+      if (!isHistoryOrCsv) return false;
+      return patterns.some(pat => r.filename.toLowerCase().includes(pat.toLowerCase()));
+    });
+    
+    if (historyRun) {
+      setSelectedCurveRun(historyRun.rel_path);
+    } else {
+      // If we are looking for yolo_cls and it wasn't matched above, double check if results.csv exists
+      const fallbackYolo = selectedModel === "yolo_cls" ? runs.find(r => r.filename === "results.csv") : null;
+      setSelectedCurveRun(fallbackYolo ? fallbackYolo.rel_path : "");
+    }
+
+    // 2. Find evaluation/report run matching selected model
+    const evalRun = runs.find(r => {
+      const isEvalOrMetrics = r.filename.includes("evaluation") || r.filename.includes("metrics");
+      if (!isEvalOrMetrics) return false;
+      return patterns.some(pat => r.filename.toLowerCase().includes(pat.toLowerCase()));
+    });
+    
+    if (evalRun) {
+      setSelectedReportRun(evalRun.rel_path);
+    } else {
+      setSelectedReportRun("");
+    }
+  }, [selectedModel, runs]);
+
+  // Load runs list and overall summaries
   useEffect(() => {
     async function loadInitialData() {
       setIsLoading(true);
@@ -40,17 +106,6 @@ function Dashboard() {
 
         const dpData = await fetchDataprep().catch(() => null);
         setDataprepData(dpData);
-
-        // Select default runs
-        const firstHistory = runsList.find(r => r.filename.includes("history") || r.filename.endsWith(".csv"));
-        if (firstHistory) {
-          setSelectedCurveRun(firstHistory.rel_path);
-        }
-
-        const firstEval = runsList.find(r => r.filename.includes("evaluation") || r.filename.includes("metrics"));
-        if (firstEval) {
-          setSelectedReportRun(firstEval.rel_path);
-        }
       } catch (err) {
         setError(err.message || "Failed to load run metrics.");
       } finally {
@@ -311,9 +366,21 @@ function Dashboard() {
                 {row.map((val, colIdx) => {
                   const isDiagonal = rowIdx === colIdx;
                   const ratio = val / (maxVal || 1);
-                  const baseColor = isDiagonal ? "34, 95, 71" : "239, 68, 68";
-                  const bg = `rgba(${baseColor}, ${0.05 + ratio * 0.85})`;
-                  const color = ratio > 0.45 ? "#fff" : "var(--text-color)";
+                  
+                  let bg = "rgba(240, 244, 248, 0.3)";
+                  let color = "rgba(100, 116, 139, 0.4)";
+                  
+                  if (val > 0) {
+                    if (isDiagonal) {
+                      // Deep Sea Ocean Blue
+                      bg = `rgba(0, 119, 182, ${0.15 + ratio * 0.85})`;
+                      color = ratio > 0.4 ? "#ffffff" : "#00477a";
+                    } else {
+                      // Warning Coral Red
+                      bg = `rgba(244, 63, 94, ${0.15 + ratio * 0.85})`;
+                      color = ratio > 0.4 ? "#ffffff" : "#9f1239";
+                    }
+                  }
                   
                   return (
                     <div
@@ -644,6 +711,27 @@ function Dashboard() {
           <span>{error}</span>
         </div>
       ) : null}
+
+      <div className="dashboardHeaderPanel">
+        <div className="headerTitleArea">
+          <h3>Bảng Điều Khiển So Sánh & Phân Tích</h3>
+          <p>Trực quan hóa chỉ số đánh giá, ma trận nhầm lẫn và biểu đồ huấn luyện giữa các mô hình</p>
+        </div>
+        <div className="globalModelSelector">
+          <label htmlFor="global-model-select">Chọn mô hình:</label>
+          <select
+            id="global-model-select"
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+          >
+            {availableModels.map(model => (
+              <option key={model} value={model}>
+                {MODEL_DISPLAY_NAMES[model] || model.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <div className="dashboardSubTabs">
         <button

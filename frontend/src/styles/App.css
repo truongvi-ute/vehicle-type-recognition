@@ -784,3 +784,62 @@ input {
   color: #647269;
 }
 
+/* Global Model Selector Styling */
+.dashboardHeaderPanel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #d9e2da;
+  padding: 16px 24px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.02);
+}
+
+.headerTitleArea h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: #17211b;
+  font-weight: 700;
+}
+
+.headerTitleArea p {
+  margin: 0;
+  font-size: 13px;
+  color: #647269;
+}
+
+.globalModelSelector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd8ce;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.globalModelSelector label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #435247;
+}
+
+.globalModelSelector select {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #225f47;
+  cursor: pointer;
+  padding-right: 8px;
+}
+
+
