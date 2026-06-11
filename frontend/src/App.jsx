@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Loader2, RotateCcw, Send } from "lucide-react";
+import { Loader2, RotateCcw, Send, Play, BarChart4 } from "lucide-react";
 
 import { predictVehicle, previewPipeline } from "./api/predictApi";
 import ImageUploader from "./components/ImageUploader";
 import ModelSelector from "./components/ModelSelector";
 import PipelineSelector from "./components/PipelineSelector";
 import PredictionResult from "./components/PredictionResult";
+import Dashboard from "./components/Dashboard";
 import "./styles/App.css";
 
 const MODEL_OPTIONS = [
@@ -51,6 +52,7 @@ const PIPELINE_OPTIONS = [
 ];
 
 function App() {
+  const [activeTab, setActiveTab] = useState("inference");
   const [selectedModel, setSelectedModel] = useState(MODEL_OPTIONS[0].value);
   const [selectedPipeline, setSelectedPipeline] = useState(PIPELINE_OPTIONS[0].value);
   const [imageFile, setImageFile] = useState(null);
@@ -158,66 +160,90 @@ function App() {
       <section className="topBar">
         <div>
           <h1>Vehicle Type Recognition</h1>
-          <p>Flask + React inference demo</p>
+          <p>Flask + React inference & comparison demo</p>
         </div>
+        
+        <div className="tabNavigation">
+          <button
+            className={`tabButton ${activeTab === "inference" ? "active" : ""}`}
+            type="button"
+            onClick={() => setActiveTab("inference")}
+          >
+            <Play size={16} />
+            <span>Thử nghiệm Nhận dạng</span>
+          </button>
+          <button
+            className={`tabButton ${activeTab === "dashboard" ? "active" : ""}`}
+            type="button"
+            onClick={() => setActiveTab("dashboard")}
+          >
+            <BarChart4 size={16} />
+            <span>Dashboard So sánh</span>
+          </button>
+        </div>
+
         <div className="statusPill">API: /api/predict</div>
       </section>
 
-      <section className="workspace">
-        <aside className="controlPanel">
-          <ModelSelector
-            models={MODEL_OPTIONS}
-            selectedModel={selectedModel}
-            onChange={setSelectedModel}
-            disabled={isLoading}
+      {activeTab === "inference" ? (
+        <section className="workspace">
+          <aside className="controlPanel">
+            <ModelSelector
+              models={MODEL_OPTIONS}
+              selectedModel={selectedModel}
+              onChange={setSelectedModel}
+              disabled={isLoading}
+            />
+
+            <ImageUploader
+              imageFile={imageFile}
+              previewUrl={previewUrl}
+              onImageChange={handleImageChange}
+              disabled={isLoading}
+            />
+
+            <PipelineSelector
+              pipelines={PIPELINE_OPTIONS}
+              selectedPipeline={selectedPipeline}
+              onChange={handlePipelineChange}
+              disabled={isLoading}
+            />
+
+            {error ? <div className="errorBox">{error}</div> : null}
+
+            <div className="actions">
+              <button
+                className="primaryButton"
+                type="button"
+                onClick={handleSubmit}
+                disabled={isLoading || !imageFile}
+              >
+                {isLoading ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
+                <span>{isLoading ? "Running" : "Predict"}</span>
+              </button>
+              <button
+                className="iconButton"
+                type="button"
+                onClick={handleReset}
+                disabled={isLoading || (!imageFile && !result && !error)}
+                aria-label="Reset"
+                title="Reset"
+              >
+                <RotateCcw size={18} />
+              </button>
+            </div>
+          </aside>
+
+          <PredictionResult
+            result={result}
+            pipelinePreview={processedPreview}
+            isLoading={isLoading}
+            isPreviewLoading={isPreviewLoading}
           />
-
-          <ImageUploader
-            imageFile={imageFile}
-            previewUrl={previewUrl}
-            onImageChange={handleImageChange}
-            disabled={isLoading}
-          />
-
-          <PipelineSelector
-            pipelines={PIPELINE_OPTIONS}
-            selectedPipeline={selectedPipeline}
-            onChange={handlePipelineChange}
-            disabled={isLoading}
-          />
-
-          {error ? <div className="errorBox">{error}</div> : null}
-
-          <div className="actions">
-            <button
-              className="primaryButton"
-              type="button"
-              onClick={handleSubmit}
-              disabled={isLoading || !imageFile}
-            >
-              {isLoading ? <Loader2 className="spin" size={18} /> : <Send size={18} />}
-              <span>{isLoading ? "Running" : "Predict"}</span>
-            </button>
-            <button
-              className="iconButton"
-              type="button"
-              onClick={handleReset}
-              disabled={isLoading || (!imageFile && !result && !error)}
-              aria-label="Reset"
-              title="Reset"
-            >
-              <RotateCcw size={18} />
-            </button>
-          </div>
-        </aside>
-
-        <PredictionResult
-          result={result}
-          pipelinePreview={processedPreview}
-          isLoading={isLoading}
-          isPreviewLoading={isPreviewLoading}
-        />
-      </section>
+        </section>
+      ) : (
+        <Dashboard />
+      )}
     </main>
   );
 }

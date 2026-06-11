@@ -91,11 +91,13 @@ CLASS_COLORS: Dict[str, str] = {
 MODEL_DISPLAY: Dict[str, str] = {
     "resnet50": "ResNet-50  (~24.5M params)",
     "vit":      "ViT-B/16   (~86M params)",
+    "yolo":     "YOLOv8-cls (~3.2M params)",
 }
 
 MODEL_FULL_NAME: Dict[str, str] = {
     "resnet50": "resnet50",
     "vit":      "vit_base_patch16_224",
+    "yolo":     "yolo_cls",
 }
 
 CHECKPOINT_DIR = _ROOT / "models"
@@ -391,18 +393,17 @@ def get_inference_transform() -> v2.Compose:
 # ─────────────────────────────────────────────────────────────────────────────
 
 @st.cache_resource(show_spinner=False)
-def load_model_cached(checkpoint_path: str, model_key: str) -> Optional[torch.nn.Module]:
+def load_model_cached(checkpoint_path: str, model_key: str) -> Optional[Any]:
     """
-    Nạp mô hình từ file .pth và cache lại (tránh reload mỗi lần predict).
-
-    Args:
-        checkpoint_path : Đường dẫn tuyệt đối tới file .pth.
-        model_key       : "resnet50" hoặc "vit".
-
-    Returns:
-        nn.Module ở chế độ eval(), hoặc None nếu lỗi.
+    Nạp mô hình từ file .pth hoặc .pt (YOLO) và cache lại.
     """
     try:
+        if model_key == "yolo" or checkpoint_path.endswith(".pt"):
+            from ultralytics import YOLO
+            model = YOLO(checkpoint_path)
+            model._is_yolo = True  # Đánh dấu là YOLO
+            return model
+            
         from src.model import load_for_inference
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model  = load_for_inference(
@@ -421,24 +422,31 @@ def load_model_cached(checkpoint_path: str, model_key: str) -> Optional[torch.nn
 # ─────────────────────────────────────────────────────────────────────────────
 
 def predict(
-    model:     torch.nn.Module,
+    model:     Any,
     image:     Image.Image,
     top_k:     int = 5,
 ) -> Tuple[List[str], List[float], float]:
     """
     Chạy inference và trả về Top-K predictions.
-
-    Args:
-        model  : Mô hình đã nạp.
-        image  : PIL Image RGB.
-        top_k  : Số lượng class trả về.
-
-    Returns:
-        Tuple (class_names, confidences, inference_ms):
-            class_names  : List tên class theo thứ tự confidence giảm dần.
-            confidences  : List xác suất (0.0 → 1.0) tương ứng.
-            inference_ms : Thời gian inference (milliseconds).
     """
+    # Xử lý trường hợp mô hình YOLOv8-cls
+    if hasattr(model, "_is_yolo") or "YOLO" in type(model).__name__:
+        t0 = time.perf_counter()
+        results = model(image, verbose=False)
+        probs_obj = results[0].probs
+        inference_ms = (time.perf_counter() - t0) * 1000
+        
+        top_k_val = min(top_k, NUM_CLASSES)
+        topk_data = probs_obj.topk(top_k_val)
+        top_conf = topk_data[0].tolist()
+        top_idxs = topk_data[1].tolist()
+        
+        # Ánh xạ chỉ số class từ YOLO model names (hoặc fallback CLASS_NAMES)
+        names_dict = getattr(model, "names", {})
+        top_classes = [names_dict.get(i, CLASS_NAMES[i]) for i in top_idxs]
+        
+        return top_classes, top_conf, inference_ms
+
     device    = next(model.parameters()).device
     transform = get_inference_transform()
 
@@ -466,8 +474,8 @@ def predict(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def load_history(model_key: str) -> Optional[List[Dict]]:
-    """Đọc file history_<model>.json từ thư mục outputs/."""
-    path = OUTPUT_DIR / f"history_{model_key}.json"
+    """Đọc file history_<model>.json từ thư mục outputs/<model_key>."""
+    path = OUTPUT_DIR / model_key / f"history_{model_key}.json"
     if not path.exists():
         return None
     try:
@@ -513,7 +521,8 @@ def render_sidebar() -> Tuple[str, int]:
         )
 
         # Trạng thái checkpoint
-        ckpt_path = CHECKPOINT_DIR / f"{MODEL_FULL_NAME[model_key]}_best.pth"
+        suffix = ".pt" if model_key == "yolo" else ".pth"
+        ckpt_path = CHECKPOINT_DIR / model_key / f"{MODEL_FULL_NAME[model_key]}_best{suffix}"
         if ckpt_path.exists():
             size_mb = ckpt_path.stat().st_size / 1e6
             st.markdown(
@@ -660,7 +669,8 @@ def render_predict_tab(model_key: str, top_k: int) -> None:
             return
 
         # Nạp mô hình
-        ckpt_path = CHECKPOINT_DIR / f"{MODEL_FULL_NAME[model_key]}_best.pth"
+        suffix = ".pt" if model_key == "yolo" else ".pth"
+        ckpt_path = CHECKPOINT_DIR / model_key / f"{MODEL_FULL_NAME[model_key]}_best{suffix}"
         if not ckpt_path.exists():
             st.markdown(
                 f'<div class="warn-box">⚠️ Không tìm thấy checkpoint:<br>'
@@ -775,7 +785,7 @@ def render_history_tab(model_key: str) -> None:
     history = load_history(model_key)
 
     if history is None:
-        history_path = OUTPUT_DIR / f"history_{model_key}.json"
+        history_path = OUTPUT_DIR / model_key / f"history_{model_key}.json"
         st.markdown(
             f'<div class="warn-box">⚠️ Chưa tìm thấy file lịch sử huấn luyện:<br>'
             f'<code>{history_path}</code><br>'
@@ -926,6 +936,7 @@ def render_history_tab(model_key: str) -> None:
 def render_dataset_tab() -> None:
     """Tab thông tin bộ dữ liệu Vehicle-10."""
     import plotly.graph_objects as go
+    import json
 
     st.markdown("""
     <div class="section-header">
@@ -933,19 +944,49 @@ def render_dataset_tab() -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # Dataset stats
-    dataset_info = {
-        "bicycle":    (1296, 144, 162),
-        "boat":       (7117, 790, 890),
-        "bus":        (3252, 361, 406),
-        "car":        (6832, 759, 854),
-        "helicopter": (534,  59,  67),
-        "minibus":    (1181, 131, 148),
-        "motorcycle": (3550, 394, 444),
-        "taxi":       (726,  81,  91),
-        "train":      (1346, 150, 169),
-        "truck":      (2971, 330, 371),
-    }
+    # Đọc dữ liệu động từ data_prep_counts.json
+    data_prep_path = OUTPUT_DIR / "data_prep_counts.json"
+    loaded_from_json = False
+    dataset_info = {}
+    target_per_class = 7562
+
+    if data_prep_path.is_file():
+        try:
+            with open(data_prep_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                splits = data.get("snapshot", {}).get("splits", {}).get("per_split", {})
+                class_details = data.get("class_details", {})
+                target_per_class = class_details.get("target_per_class", 7562)
+                
+                train_split = splits.get("train", {})
+                val_split = splits.get("valid_unseen", {})
+                test_split = splits.get("test", {})
+                
+                for cls in train_split.keys():
+                    tr = train_split.get(cls, 0)
+                    va = val_split.get(cls, 0)
+                    te = test_split.get(cls, 0)
+                    dataset_info[cls] = (tr, va, te)
+                
+                if dataset_info:
+                    loaded_from_json = True
+        except Exception as e:
+            st.warning(f"Không thể đọc file {data_prep_path.name}: {e}")
+
+    if not loaded_from_json:
+        # Số liệu thực tế chính xác làm dữ liệu dự phòng
+        dataset_info = {
+            "bicycle":    (1375, 81, 162),
+            "boat":       (7562, 445, 890),
+            "bus":        (3455, 203, 406),
+            "car":        (7259, 427, 854),
+            "helicopter": (568,  33,  67),
+            "minibus":    (1255, 74,  148),
+            "motorcycle": (3772, 222, 444),
+            "taxi":       (772,  81,  91),
+            "train":      (1430, 84,  168),
+            "truck":      (3157, 186, 371),
+        }
 
     # Metric tổng
     total_train = sum(v[0] for v in dataset_info.values())
@@ -993,7 +1034,7 @@ def render_dataset_tab() -> None:
         textfont     = dict(color="#94a3b8", size=11),
     ))
     fig.update_layout(
-        title          = dict(text="Phân phối số lượng ảnh Train theo lớp",
+        title          = dict(text="Phân phối số lượng ảnh Train gốc theo lớp",
                               font=dict(color="#e2e8f0", size=14)),
         height         = 340,
         paper_bgcolor  = "rgba(0,0,0,0)",
@@ -1010,7 +1051,7 @@ def render_dataset_tab() -> None:
     col1, col2 = st.columns(2)
     with col1:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("**📊 Chi tiết từng lớp**")
+        st.markdown("**📊 Chi tiết từng lớp (Tập Train gốc)**")
         for cls, (tr, va, te) in dataset_info.items():
             emoji = CLASS_EMOJI.get(cls, "")
             vi    = CLASS_VI.get(cls, cls)
@@ -1030,7 +1071,7 @@ def render_dataset_tab() -> None:
 
         techniques = [
             ("Split First Protocol", "Chia 85%-5%-10% TRƯỚC khi augment → chống Data Leakage"),
-            ("Class Balancing", "Nhân bản class thiểu số lên ~7,117 ảnh (class boat)"),
+            ("Class Balancing", f"Nhân bản class thiểu số lên ~{target_per_class:,} ảnh (bằng với class train lớn nhất)"),
             ("Offline Augment ×4", "4 pipelines: Base / Night / Rain / Sun"),
             ("MixUp (α=0.2)", "Trộn tuyến tính 2 ảnh → soft-labels, giảm overfitting"),
             ("CutMix (α=1.0)", "Cắt-dán vùng giữa 2 ảnh → học toàn cấu trúc xe"),
@@ -1059,14 +1100,14 @@ def render_model_tab(model_key: str) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2, gap="large")
+    col1, col2, col3 = st.columns(3, gap="medium")
 
     with col1:
         # ResNet-50
         active = "border-color:rgba(99,102,241,0.6);" if model_key == "resnet50" else ""
         st.markdown(f"""
         <div class="glass-card" style="{active}">
-            <div style="font-size:1.4rem;font-weight:800;color:#818cf8;margin-bottom:0.5rem;">
+            <div style="font-size:1.3rem;font-weight:800;color:#818cf8;margin-bottom:0.5rem;">
                 🏗️ ResNet-50
             </div>
             <div class="metric-row">
@@ -1074,7 +1115,7 @@ def render_model_tab(model_key: str) -> None:
                 <div class="metric-chip"><div class="value">CNN</div><div class="label">Type</div></div>
                 <div class="metric-chip"><div class="value">2048</div><div class="label">Feature dim</div></div>
             </div>
-            <div style="color:#64748b;font-size:0.85rem;line-height:1.7;">
+            <div style="color:#64748b;font-size:0.83rem;line-height:1.7;">
                 <b style="color:#94a3b8;">Kiến trúc:</b> 4 nhóm Residual Block với Skip Connections.<br>
                 <b style="color:#94a3b8;">Head:</b> Linear(2048 → 10) thay thế FC gốc.<br>
                 <b style="color:#94a3b8;">Phase 1:</b> Freeze backbone, chỉ train FC.<br>
@@ -1089,7 +1130,7 @@ def render_model_tab(model_key: str) -> None:
         active = "border-color:rgba(99,102,241,0.6);" if model_key == "vit" else ""
         st.markdown(f"""
         <div class="glass-card" style="{active}">
-            <div style="font-size:1.4rem;font-weight:800;color:#818cf8;margin-bottom:0.5rem;">
+            <div style="font-size:1.3rem;font-weight:800;color:#818cf8;margin-bottom:0.5rem;">
                 🤖 ViT-B/16
             </div>
             <div class="metric-row">
@@ -1097,12 +1138,35 @@ def render_model_tab(model_key: str) -> None:
                 <div class="metric-chip"><div class="value">Transformer</div><div class="label">Type</div></div>
                 <div class="metric-chip"><div class="value">768</div><div class="label">Feature dim</div></div>
             </div>
-            <div style="color:#64748b;font-size:0.85rem;line-height:1.7;">
+            <div style="color:#64748b;font-size:0.83rem;line-height:1.7;">
                 <b style="color:#94a3b8;">Kiến trúc:</b> 12 Encoder blocks, patch 16×16.<br>
                 <b style="color:#94a3b8;">Head:</b> Linear(768 → 10) tại <code>heads.head</code>.<br>
                 <b style="color:#94a3b8;">Phase 1:</b> Freeze toàn bộ, chỉ train heads.<br>
                 <b style="color:#94a3b8;">Phase 2:</b> Mở 4 block encoder cuối + LayerNorm.<br>
                 <b style="color:#94a3b8;">Ưu điểm:</b> Self-Attention toàn cục, hiểu ngữ cảnh.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        # YOLOv8-cls
+        active = "border-color:rgba(99,102,241,0.6);" if model_key == "yolo" else ""
+        st.markdown(f"""
+        <div class="glass-card" style="{active}">
+            <div style="font-size:1.3rem;font-weight:800;color:#818cf8;margin-bottom:0.5rem;">
+                ⚡ YOLOv8-cls
+            </div>
+            <div class="metric-row">
+                <div class="metric-chip"><div class="value">3.2M</div><div class="label">Params</div></div>
+                <div class="metric-chip"><div class="value">YOLO-cls</div><div class="label">Type</div></div>
+                <div class="metric-chip"><div class="value">512</div><div class="label">Feature dim</div></div>
+            </div>
+            <div style="color:#64748b;font-size:0.83rem;line-height:1.7;">
+                <b style="color:#94a3b8;">Kiến trúc:</b> Darknet53 kết hợp các block C2f.<br>
+                <b style="color:#94a3b8;">Head:</b> Global average pooling và linear projection.<br>
+                <b style="color:#94a3b8;">Đóng gói:</b> Huấn luyện thông qua bộ adapter Ultralytics.<br>
+                <b style="color:#94a3b8;">Đặc trưng:</b> Tối ưu hóa cực lớn cho tốc độ suy luận.<br>
+                <b style="color:#94a3b8;">Ưu điểm:</b> Kích thước siêu nhẹ (~3MB), tốc độ thời gian thực.
             </div>
         </div>
         """, unsafe_allow_html=True)

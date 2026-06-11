@@ -1,0 +1,107 @@
+[
+  {
+    "epoch": 1.0,
+    "train_loss": 1.215138,
+    "valid_unseen_loss": 0.789062,
+    "valid_unseen_acc": 0.893889,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 2.0,
+    "train_loss": 1.147072,
+    "valid_unseen_loss": 0.773631,
+    "valid_unseen_acc": 0.903333,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 3.0,
+    "train_loss": 1.13418,
+    "valid_unseen_loss": 0.76621,
+    "valid_unseen_acc": 0.905,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 4.0,
+    "train_loss": 1.128808,
+    "valid_unseen_loss": 0.76147,
+    "valid_unseen_acc": 0.910556,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 5.0,
+    "train_loss": 1.124266,
+    "valid_unseen_loss": 0.750574,
+    "valid_unseen_acc": 0.912778,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 6.0,
+    "train_loss": 1.05526,
+    "valid_unseen_loss": 0.690512,
+    "valid_unseen_acc": 0.923889,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 7.0,
+    "train_loss": 0.985829,
+    "valid_unseen_loss": 0.675161,
+    "valid_unseen_acc": 0.927778,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 8.0,
+    "train_loss": 0.956972,
+    "valid_unseen_loss": 0.659774,
+    "valid_unseen_acc": 0.936111,
+    "elapsed_s": 0
+  },
+  {
+    "epoch": 9.0,
+    "train_loss": 0.939089,
+    "valid_unseen_loss": 0.662511,
+    "valid_unseen_acc": 0.935,
+    "elapsed_s": 2436.9
+  },
+  {
+    "epoch": 10.0,
+    "train_loss": 0.926721,
+    "valid_unseen_loss": 0.664125,
+    "valid_unseen_acc": 0.933889,
+    "elapsed_s": 2458.86
+  },
+  {
+    "epoch": 11.0,
+    "train_loss": 0.916238,
+    "valid_unseen_loss": 0.676279,
+    "valid_unseen_acc": 0.933889,
+    "elapsed_s": 2459.25
+  },
+  {
+    "epoch": 12.0,
+    "train_loss": 0.908936,
+    "valid_unseen_loss": 0.668894,
+    "valid_unseen_acc": 0.932778,
+    "elapsed_s": 2448.78
+  },
+  {
+    "epoch": 13.0,
+    "train_loss": 0.901916,
+    "valid_unseen_loss": 0.679006,
+    "valid_unseen_acc": 0.932222,
+    "elapsed_s": 2452.53
+  },
+  {
+    "epoch": 14.0,
+    "train_loss": 0.897395,
+    "valid_unseen_loss": 0.675035,
+    "valid_unseen_acc": 0.930556,
+    "elapsed_s": 2446.76
+  },
+  {
+    "epoch": 15.0,
+    "train_loss": 0.887956,
+    "valid_unseen_loss": 0.678508,
+    "valid_unseen_acc": 0.935,
+    "elapsed_s": 2447.95
+  }
+]

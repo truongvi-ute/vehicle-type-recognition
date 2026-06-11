@@ -1,0 +1,19 @@
+{
+  "model": "vit",
+  "architecture": "vit_base_patch16_224",
+  "checkpoint": "models/vit_base_patch16_224_best.pth",
+  "primary_metric_split": "valid_unseen",
+  "official_evaluation_split": "test",
+  "valid_unseen": {
+    "loss": 0.659774,
+    "accuracy": 0.936111
+  },
+  "test": {
+    "loss": 0.655772,
+    "accuracy": 0.940572
+  },
+  "valid_traincopy": {
+    "loss": 0.566471,
+    "accuracy": 0.978333
+  }
+}

@@ -16,6 +16,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from routes.predict import predict_bp  # noqa: E402
+from routes.metrics import metrics_bp  # noqa: E402
 
 
 def create_app() -> Flask:
@@ -25,6 +26,7 @@ def create_app() -> Flask:
 
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     app.register_blueprint(predict_bp, url_prefix="/api")
+    app.register_blueprint(metrics_bp, url_prefix="/api")
 
     @app.get("/api/health")
     def health() -> tuple[object, int]:
