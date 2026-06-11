@@ -37,12 +37,33 @@ def _candidate_paths(models_dir: Path, model_name: Optional[str]) -> list[Path]:
                 f"{raw.name}.pth", f"{raw.name}_best.pth",
                 f"{raw.name}.pt", f"{raw.name}_best.pt"
             ])
-        return [models_dir / name for name in names]
+        
+        # Determine the model-specific subdirectory key
+        model_key = None
+        lower_name = raw.name.lower()
+        if "resnet" in lower_name:
+            model_key = "resnet50"
+        elif "vit" in lower_name:
+            model_key = "vit"
+        elif "yolo" in lower_name:
+            model_key = "yolo"
 
-    paths = list(models_dir.glob("*.pth")) + list(models_dir.glob("*.pt"))
+        candidates = []
+        for name in names:
+            if model_key:
+                candidates.append(models_dir / model_key / name)
+            candidates.append(models_dir / name)
+        return candidates
+
+    pth_files = (
+        list(models_dir.glob("*.pth")) + 
+        list(models_dir.glob("*/*.pth")) + 
+        list(models_dir.glob("*.pt")) + 
+        list(models_dir.glob("*/*.pt"))
+    )
     return sorted(
-        paths,
-        key=lambda path: (0 if path.name.endswith("_best.pth") or path.name.endswith("_best.pt") else 1, path.name.lower()),
+        pth_files,
+        key=lambda path: (0 if (path.name.endswith("_best.pth") or path.name.endswith("_best.pt")) else 1, path.name.lower()),
     )
 
 

@@ -177,8 +177,13 @@ def evaluate_checkpoint(
         result[AUX_VALID_SPLIT] = None
 
     if output_path is None:
-        checkpoint_stem = Path(checkpoint).stem
-        output_path = str(Path("outputs") / f"evaluation_{checkpoint_stem}.json")
+        checkpoint_path = Path(checkpoint)
+        model_key = checkpoint_path.parent.name
+        checkpoint_stem = checkpoint_path.stem
+        if model_key in ["resnet50", "vit", "yolo"]:
+            output_path = str(Path("outputs") / model_key / f"evaluation_{checkpoint_stem}.json")
+        else:
+            output_path = str(Path("outputs") / f"evaluation_{checkpoint_stem}.json")
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)

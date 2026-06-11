@@ -230,8 +230,9 @@ def _load_best_if_available(
     model: nn.Module,
     full_model_name: str,
     device: torch.device,
+    checkpoint_dir: str,
 ) -> Optional[str]:
-    best_path = Path(CHECKPOINT_DIR) / f"{full_model_name}_best.pth"
+    best_path = Path(checkpoint_dir) / f"{full_model_name}_best.pth"
     if not best_path.is_file():
         return None
     load_checkpoint(str(best_path), model=model, optimizer=None, device=device)
@@ -288,10 +289,13 @@ def train(
     )
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1).to(device)
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    checkpoint_dir = os.path.join(CHECKPOINT_DIR, model_key)
+    output_dir = os.path.join(OUTPUT_DIR, model_key)
 
-    stopper = EarlyStopping(patience=patience, checkpoint_dir=CHECKPOINT_DIR)
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    stopper = EarlyStopping(patience=patience, checkpoint_dir=checkpoint_dir)
     history: List[Dict[str, float]] = []
     current_phase = ""
     optimizer: Optional[torch.optim.AdamW] = None
@@ -373,11 +377,11 @@ def train(
             print(f"\nStopped early at epoch {epoch}.")
             break
 
-    history_path = Path(OUTPUT_DIR) / f"history_{model_key}.json"
+    history_path = Path(output_dir) / f"history_{model_key}.json"
     with history_path.open("w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
-    checkpoint_path = _load_best_if_available(model, full_model_name, device)
+    checkpoint_path = _load_best_if_available(model, full_model_name, device, checkpoint_dir)
 
     valid_unseen_loss, valid_unseen_acc = evaluate_loss_acc(
         model=model,
@@ -416,7 +420,7 @@ def train(
     else:
         final_metrics[AUX_VALID_SPLIT] = None
 
-    metrics_path = Path(OUTPUT_DIR) / f"metrics_{model_key}.json"
+    metrics_path = Path(output_dir) / f"metrics_{model_key}.json"
     with metrics_path.open("w", encoding="utf-8") as f:
         json.dump(final_metrics, f, ensure_ascii=False, indent=2)
 

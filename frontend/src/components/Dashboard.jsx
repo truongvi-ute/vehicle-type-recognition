@@ -41,21 +41,25 @@ function Dashboard() {
 
   // Extract unique models from the runs and summaries available
   const uniqueModels = Array.from(new Set([
-    ...summary.map(s => s.model),
+    ...summary.map(s => {
+      const m = s.model.toLowerCase();
+      if (m.includes("resnet")) return "resnet50";
+      if (m.includes("vit")) return "vit";
+      if (m.includes("yolo")) return "yolo_cls";
+      return s.model;
+    }),
     ...runs
       .filter(r => r.filename.includes("evaluation") || r.filename.includes("metrics") || r.filename.includes("history") || r.filename.endsWith(".csv"))
       .map(r => {
-        let name = r.filename
-          .replace("evaluation_", "")
-          .replace("history_", "")
-          .replace("_best", "")
-          .replace(".json", "")
-          .replace(".csv", "");
+        const name = r.filename.toLowerCase();
+        if (name.includes("resnet")) return "resnet50";
+        if (name.includes("vit")) return "vit";
+        if (name.includes("yolo") || name.includes("results")) return "yolo_cls";
         return name;
       })
-  ])).filter(m => m && m.toLowerCase() !== "dataprep" && m.toLowerCase() !== "data_prep" && m.toLowerCase() !== "results");
+  ])).filter(m => m === "resnet50" || m === "vit" || m === "yolo_cls");
 
-  const availableModels = uniqueModels.length > 0 ? uniqueModels : ["yolo_cls", "resnet50"];
+  const availableModels = uniqueModels.length > 0 ? uniqueModels : ["yolo_cls", "resnet50", "vit"];
 
   // Sync sub-tab runs when selectedModel changes
   useEffect(() => {
@@ -78,10 +82,14 @@ function Dashboard() {
       setSelectedCurveRun(fallbackYolo ? fallbackYolo.rel_path : "");
     }
 
-    // 2. Find evaluation/report run matching selected model
+    // 2. Find evaluation/report run matching selected model (prefer evaluation_ over metrics_)
     const evalRun = runs.find(r => {
-      const isEvalOrMetrics = r.filename.includes("evaluation") || r.filename.includes("metrics");
-      if (!isEvalOrMetrics) return false;
+      const isEval = r.filename.includes("evaluation");
+      if (!isEval) return false;
+      return patterns.some(pat => r.filename.toLowerCase().includes(pat.toLowerCase()));
+    }) || runs.find(r => {
+      const isMetrics = r.filename.includes("metrics");
+      if (!isMetrics) return false;
       return patterns.some(pat => r.filename.toLowerCase().includes(pat.toLowerCase()));
     });
     
@@ -827,7 +835,7 @@ function Dashboard() {
                 >
                   <option value="">-- Chọn file đánh giá --</option>
                   {runs
-                    .filter(r => r.filename.includes("evaluation") || r.filename.includes("metrics"))
+                    .filter(r => r.filename.includes("evaluation"))
                     .map(r => (
                       <option key={r.rel_path} value={r.rel_path}>
                         {r.filename}
@@ -856,7 +864,7 @@ function Dashboard() {
                 >
                   <option value="">-- Chọn file đánh giá --</option>
                   {runs
-                    .filter(r => r.filename.includes("evaluation") || r.filename.includes("metrics"))
+                    .filter(r => r.filename.includes("evaluation"))
                     .map(r => (
                       <option key={r.rel_path} value={r.rel_path}>
                         {r.filename}

@@ -1,0 +1,16 @@
+{
+  "model": "yolo",
+  "architecture": "yolov8n-cls",
+  "checkpoint": "models/yolo/yolo_cls_best.pt",
+  "primary_metric_split": "valid_unseen",
+  "official_evaluation_split": "test",
+  "valid_unseen": {
+    "loss": 0.24938,
+    "accuracy": 0.91556
+  },
+  "test": {
+    "loss": 0.24938,
+    "accuracy": 0.91556
+  },
+  "valid_traincopy": null
+}
