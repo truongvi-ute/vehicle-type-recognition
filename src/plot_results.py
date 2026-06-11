@@ -216,26 +216,39 @@ def plot_confusion_matrix(evaluation_path: Path, output_path: Path, split: str =
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Draw loss curve and confusion matrix SVG files.")
-    parser.add_argument("--history", type=Path, default=Path("outputs/history_resnet50.json"))
-    parser.add_argument("--evaluation", type=Path, default=Path("outputs/evaluation_resnet50_best.json"))
+    parser.add_argument("--history", type=Path, default=None, help="Path to history JSON file")
+    parser.add_argument("--evaluation", type=Path, default=None, help="Path to evaluation JSON file")
     parser.add_argument("--split", default="test")
-    parser.add_argument("--out_dir", type=Path, default=Path("outputs/figures"))
+    parser.add_argument("--out_dir", type=Path, default=None, help="Output directory for generated SVG charts")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    loss_path = args.out_dir / "resnet50_loss.svg"
-    plot_loss(args.history, loss_path)
+    
+    history = args.history
+    if history is None:
+        history = Path("outputs/resnet50/history_resnet50.json")
+        
+    out_dir = args.out_dir
+    if out_dir is None:
+        out_dir = history.parent / "figures"
+        
+    evaluation = args.evaluation
+    if evaluation is None:
+        evaluation = history.parent / "evaluation_resnet50_best.json"
+
+    loss_path = out_dir / "resnet50_loss.svg"
+    plot_loss(history, loss_path)
     print(f"Saved loss plot: {loss_path}")
 
-    if args.evaluation.is_file():
-        cm_path = args.out_dir / f"resnet50_confusion_matrix_{args.split}.svg"
-        plot_confusion_matrix(args.evaluation, cm_path, split=args.split)
+    if evaluation.is_file():
+        cm_path = out_dir / f"resnet50_confusion_matrix_{args.split}.svg"
+        plot_confusion_matrix(evaluation, cm_path, split=args.split)
         print(f"Saved confusion matrix: {cm_path}")
     else:
         print(
-            f"Skipped confusion matrix: {args.evaluation} does not exist. "
+            f"Skipped confusion matrix: {evaluation} does not exist. "
             "Generate it with src/evaluate.py first."
         )
 

@@ -37,6 +37,7 @@ def predict_image(
 
     import torch
     from services.model_loader import get_model
+    from ultralytics import YOLO
 
     started = time.perf_counter()
     loaded = get_model(models_dir=models_dir, model_name=model_name)
@@ -44,23 +45,51 @@ def predict_image(
         image_stream,
         pipeline=pipeline,
     )
-    image_tensor = image_tensor.to(loaded.device)
-
-    with torch.no_grad():
-        logits = loaded.model(image_tensor)
-    probabilities = torch.softmax(logits, dim=1)[0]
-    k = min(top_k, probabilities.numel(), len(CLASS_NAMES))
-    confidences, indices = torch.topk(probabilities, k=k)
 
     predictions: List[Dict[str, object]] = []
-    for confidence, index in zip(confidences.tolist(), indices.tolist()):
-        predictions.append(
-            {
-                "class_name": CLASS_NAMES[index],
-                "confidence": round(float(confidence), 6),
-            }
-        )
+    is_yolo = isinstance(loaded.model, YOLO)
 
+    if is_yolo:
+        results = loaded.model(processed_image, verbose=False)
+        probs = results[0].probs
+        topk_conf = (
+            probs.top5conf.tolist()
+            if hasattr(probs, 'top5conf') and hasattr(probs.top5conf, 'tolist')
+            else (list(probs.top5conf) if hasattr(probs, 'top5conf') else [])
+        )
+        topk_idx = list(probs.top5) if hasattr(probs, 'top5') else []
+
+        if not topk_idx:
+            probs_tensor = probs.data
+            k = min(top_k, probs_tensor.numel())
+            topk_conf_tensor, topk_idx_tensor = torch.topk(probs_tensor, k=k)
+            topk_conf = topk_conf_tensor.tolist()
+            topk_idx = topk_idx_tensor.tolist()
+
+        for confidence, index in zip(topk_conf, topk_idx):
+            predictions.append(
+                {
+                    "class_name": CLASS_NAMES[index],
+                    "confidence": round(float(confidence), 6),
+                }
+            )
+    else:
+        image_tensor = image_tensor.to(loaded.device)
+        with torch.no_grad():
+            logits = loaded.model(image_tensor)
+        probabilities = torch.softmax(logits, dim=1)[0]
+        k = min(top_k, probabilities.numel(), len(CLASS_NAMES))
+        confidences, indices = torch.topk(probabilities, k=k)
+
+        for confidence, index in zip(confidences.tolist(), indices.tolist()):
+            predictions.append(
+                {
+                    "class_name": CLASS_NAMES[index],
+                    "confidence": round(float(confidence), 6),
+                }
+            )
+
+    predictions = predictions[:top_k]
     elapsed_ms = int(round((time.perf_counter() - started) * 1000))
     return {
         "model_name": loaded.name,

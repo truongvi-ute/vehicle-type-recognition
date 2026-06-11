@@ -113,6 +113,16 @@ VehicleTypeRecognition/
 
 `backend/app.py` is the official Flask API entry point. A root-level Streamlit `app.py`, if still present, is legacy/prototype only and is not the production demo.
 
+## Pre-trained Models
+
+You can download the pre-trained checkpoints for all three models (ResNet-50, Vision Transformer, and YOLOv8-cls) from this Google Drive folder:
+* **[Google Drive Models Folder](https://drive.google.com/drive/folders/1pen2rfF3fS25gyyToch0QtIISUdLCihV?usp=sharing)**
+
+After downloading, place the model files in their respective folders under the `models/` directory to run inference:
+* `models/resnet50/resnet50_best.pth`
+* `models/vit/vit_base_patch16_224_best.pth`
+* `models/yolo/yolo_cls_best.pt`
+
 ## Quick Start
 
 ```bash

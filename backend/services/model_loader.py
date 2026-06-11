@@ -32,13 +32,38 @@ def _candidate_paths(models_dir: Path, model_name: Optional[str]) -> list[Path]:
     if model_name:
         raw = Path(model_name)
         names = [raw.name]
-        if raw.suffix != ".pth":
-            names.extend([f"{raw.name}.pth", f"{raw.name}_best.pth"])
-        return [models_dir / name for name in names]
+        if raw.suffix not in (".pth", ".pt"):
+            names.extend([
+                f"{raw.name}.pth", f"{raw.name}_best.pth",
+                f"{raw.name}.pt", f"{raw.name}_best.pt"
+            ])
+        
+        # Determine the model-specific subdirectory key
+        model_key = None
+        lower_name = raw.name.lower()
+        if "resnet" in lower_name:
+            model_key = "resnet50"
+        elif "vit" in lower_name:
+            model_key = "vit"
+        elif "yolo" in lower_name:
+            model_key = "yolo"
 
+        candidates = []
+        for name in names:
+            if model_key:
+                candidates.append(models_dir / model_key / name)
+            candidates.append(models_dir / name)
+        return candidates
+
+    pth_files = (
+        list(models_dir.glob("*.pth")) + 
+        list(models_dir.glob("*/*.pth")) + 
+        list(models_dir.glob("*.pt")) + 
+        list(models_dir.glob("*/*.pt"))
+    )
     return sorted(
-        models_dir.glob("*.pth"),
-        key=lambda path: (0 if path.name.endswith("_best.pth") else 1, path.name.lower()),
+        pth_files,
+        key=lambda path: (0 if (path.name.endswith("_best.pth") or path.name.endswith("_best.pt")) else 1, path.name.lower()),
     )
 
 
@@ -54,11 +79,11 @@ def resolve_model_path(models_dir: str | Path, model_name: Optional[str] = None)
     if model_name:
         raise FileNotFoundError(
             f"Model '{model_name}' was not found in {root}. "
-            "Expected a .pth checkpoint such as resnet50_best.pth."
+            "Expected a checkpoint such as resnet50_best.pth or yolo_cls_best.pt."
         )
 
     raise FileNotFoundError(
-        f"No .pth checkpoint found in {root}. Train a model first or copy a checkpoint into models/."
+        f"No .pth or .pt checkpoint found in {root}. Train a model first or copy a checkpoint into models/."
     )
 
 
@@ -69,16 +94,31 @@ def get_model(models_dir: str | Path, model_name: Optional[str] = None) -> Loade
         return _MODEL_CACHE[cache_key]
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = load_for_inference(
-        checkpoint_path=str(model_path),
-        num_classes=len(CLASS_NAMES),
-        device=device,
-    )
-    loaded = LoadedModel(
-        name=model_path.stem,
-        path=model_path,
-        model=model,
-        device=device,
-    )
+    
+    is_yolo = model_path.suffix == ".pt" or "yolo" in model_path.name.lower()
+    
+    if is_yolo:
+        from ultralytics import YOLO
+        yolo_model = YOLO(str(model_path))
+        yolo_model.to(device)
+        loaded = LoadedModel(
+            name=model_path.stem,
+            path=model_path,
+            model=yolo_model,
+            device=device,
+        )
+    else:
+        model = load_for_inference(
+            checkpoint_path=str(model_path),
+            num_classes=len(CLASS_NAMES),
+            device=device,
+        )
+        loaded = LoadedModel(
+            name=model_path.stem,
+            path=model_path,
+            model=model,
+            device=device,
+        )
+        
     _MODEL_CACHE[cache_key] = loaded
     return loaded
