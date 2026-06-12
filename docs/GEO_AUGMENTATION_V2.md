@@ -279,4 +279,268 @@ Không dùng `valid_traincopy` làm tiêu chí chính để kết luận Version
 
 ## 14. Trạng thái triển khai
 
-Tài liệu này là đặc tả đề xuất. Geo Augmentation Version 2 chưa được triển khai vào mã nguồn tại thời điểm tạo tài liệu.
+Geo Augmentation Version 2 đã có ba pipeline xử lý ảnh và script tạo dữ liệu riêng trong mã nguồn. Bộ dữ liệu `data/augmented_v2` chỉ được tạo khi chạy `src/augment_offline_v2.py`.
+
+Version 2 phải được triển khai tách biệt với Version 1 để có thể train và so sánh hai bộ dữ liệu trong cùng điều kiện. Không sửa nội dung của `data/splits` và không ghi đè `data/augmented`.
+
+## 15. Cấu trúc mã nguồn cần bổ sung
+
+Thêm ba file xử lý ảnh vào package dùng chung `src/image_pipelines`:
+
+```text
+src/image_pipelines/
+  __init__.py
+  base.py
+  rain.py
+  sun.py
+  night.py
+  gaussian_blur.py       # mới cho Geo Version 2
+  motion_blur.py         # mới cho Geo Version 2
+  unsharp_mask.py        # mới cho Geo Version 2
+```
+
+Thêm một script augmentation riêng cho Version 2:
+
+```text
+src/augment_offline_v2.py
+```
+
+Không thay thế hoặc đổi hành vi của `src/augment_offline.py`. File hiện tại tiếp tục là implementation của Version 1 với các bucket `normal`, `rain`, `sun` và `night`.
+
+### 15.1. `gaussian_blur.py`
+
+Trách nhiệm:
+
+- Nhận một `PIL.Image.Image` ở mode `RGB`.
+- Chọn kernel và sigma bằng RNG có seed.
+- Áp Gaussian blur với mức nhẹ hoặc trung bình.
+- Trả về ảnh `RGB` có cùng kích thước đầu vào.
+
+API dự kiến:
+
+```python
+def apply_gaussian_blur_pipeline(
+    image: Image.Image,
+    seed: int = 42,
+) -> Image.Image:
+    ...
+```
+
+### 15.2. `motion_blur.py`
+
+Trách nhiệm:
+
+- Nhận một `PIL.Image.Image` ở mode `RGB`.
+- Tạo motion kernel có chiều dài lẻ từ `3` đến `7`.
+- Xoay kernel theo góc ngẫu nhiên từ `0` đến `180` độ.
+- Chuẩn hóa kernel trước khi convolution.
+- Trả về ảnh `RGB` có cùng kích thước đầu vào.
+
+API dự kiến:
+
+```python
+def apply_motion_blur_pipeline(
+    image: Image.Image,
+    seed: int = 42,
+) -> Image.Image:
+    ...
+```
+
+### 15.3. `unsharp_mask.py`
+
+Trách nhiệm:
+
+- Nhận một `PIL.Image.Image` ở mode `RGB`.
+- Tạo ảnh Gaussian blur để lấy thành phần chi tiết.
+- Tăng độ sắc nét bằng amount ngẫu nhiên trong phạm vi đã định nghĩa.
+- Giới hạn giá trị pixel trong `[0, 255]`.
+- Trả về ảnh `RGB` có cùng kích thước đầu vào.
+
+API dự kiến:
+
+```python
+def apply_unsharp_mask_pipeline(
+    image: Image.Image,
+    seed: int = 42,
+) -> Image.Image:
+    ...
+```
+
+## 16. Registry pipeline Version 2
+
+Cập nhật `src/image_pipelines/__init__.py` để export thêm ba hàm mới, nhưng không thay đổi `SUPPORTED_PIPELINES` hiện tại của Version 1 và backend.
+
+Thêm registry riêng cho Version 2:
+
+```python
+SUPPORTED_V2_PIPELINES = [
+    "normal",
+    "gaussian_blur",
+    "motion_blur",
+    "unsharp_mask",
+]
+
+def apply_v2_pipeline(
+    image: Image.Image,
+    pipeline: str | None,
+    seed: int = 42,
+) -> tuple[Image.Image, str]:
+    ...
+```
+
+Quy tắc dispatch:
+
+| Bucket | Hàm xử lý |
+|---|---|
+| `normal` | trả nguyên ảnh sau Base Pipeline |
+| `gaussian_blur` | `apply_gaussian_blur_pipeline` |
+| `motion_blur` | `apply_motion_blur_pipeline` |
+| `unsharp_mask` | `apply_unsharp_mask_pipeline` |
+
+Việc dùng registry riêng tránh làm frontend/backend hiện tại tự động nhận các pipeline V2 trước khi phần giao diện được thiết kế và kiểm thử.
+
+## 17. Script `augment_offline_v2.py`
+
+`src/augment_offline_v2.py` là entry point tạo bộ dữ liệu Geo Version 2. Script nên tái sử dụng các hàm ổn định từ Version 1 khi phù hợp, đặc biệt là:
+
+- Khám phá class và đọc danh sách ảnh.
+- Base Pipeline `224 x 224`.
+- `apply_geometric_augmentation()` và toàn bộ tham số Geo Version 1.
+- Cách tính `target_per_class`.
+- Quota fill policy.
+- Cách chọn ảnh gốc và ảnh cần geometric augmentation.
+- Seed mặc định `42`.
+
+Khác biệt duy nhất trong kế hoạch tạo ảnh là danh sách bucket và pipeline cuối:
+
+```python
+BUCKET_RATIOS = {
+    "normal": 0.70,
+    "gaussian_blur": 0.10,
+    "motion_blur": 0.10,
+    "unsharp_mask": 0.10,
+}
+```
+
+Script không được gọi `data_split.py`. Nguồn đầu vào bắt buộc là kết quả split đã tồn tại:
+
+```text
+data/splits/train
+data/splits/valid_unseen
+data/splits/valid_traincopy
+data/splits/test
+```
+
+CLI dự kiến:
+
+```bash
+python src/augment_offline_v2.py \
+  --input_dir data/splits/train \
+  --splits_dir data/splits \
+  --output_dir data/augmented_v2 \
+  --seed 42
+```
+
+Các tham số nên tương thích với Version 1:
+
+```text
+--input_dir
+--output_dir
+--splits_dir
+--target_per_class
+--seed
+--stats_json
+```
+
+## 18. Cấu trúc dữ liệu đầu ra
+
+Version 2 tạo một dataset root riêng:
+
+```text
+data/augmented_v2/
+  train/
+    bicycle/
+    boat/
+    bus/
+    car/
+    helicopter/
+    minibus/
+    motorcycle/
+    taxi/
+    train/
+    truck/
+  valid_unseen/
+  valid_traincopy/
+  test/
+```
+
+Quy tắc dữ liệu:
+
+- `train`: được tạo lại bằng quota policy `70/10/10/10` của Version 2.
+- `valid_unseen`: sao chép nguyên trạng từ `data/splits/valid_unseen`.
+- `valid_traincopy`: sao chép nguyên trạng từ `data/splits/valid_traincopy`.
+- `test`: sao chép nguyên trạng từ `data/splits/test`.
+- Không augmentation validation và test.
+- Không đọc ảnh train từ `data/augmented` của Version 1.
+- Không ghi file vào `data/splits`.
+
+Nhờ vậy hai thí nghiệm dùng chính xác cùng một phép chia dữ liệu:
+
+```text
+data/splits
+  |-> augment_offline.py    -> data/augmented     (Geo Version 1)
+  |-> augment_offline_v2.py -> data/augmented_v2  (Geo Version 2)
+```
+
+## 19. Yêu cầu tương đương giữa V1 và V2
+
+Để phép so sánh có ý nghĩa, hai script phải giữ giống nhau các yếu tố sau:
+
+| Thành phần | Version 1 | Version 2 |
+|---|---|---|
+| Nguồn split | `data/splits` | `data/splits` |
+| Train source | `data/splits/train` | `data/splits/train` |
+| Target mỗi class | giống nhau | giống nhau |
+| Base Pipeline | resize + zero-pad `224 x 224` | giống V1 |
+| Geo augmentation | Geo Version 1 | giữ nguyên Geo Version 1 |
+| Normal quota | `70%` | `70%` |
+| Ba bucket còn lại | rain, sun, night | Gaussian, motion, unsharp |
+| Seed mặc định | `42` | `42` |
+| Validation/test | không augmentation | không augmentation |
+
+Nếu truyền cùng `target_per_class` và seed, số lượng ảnh theo class của hai dataset phải bằng nhau. Chỉ loại biến đổi trên `30%` ảnh ngoài bucket `normal` được phép khác nhau.
+
+## 20. Kiểm tra sau triển khai
+
+Sau khi tạo `data/augmented_v2`, cần bổ sung hoặc mở rộng công cụ kiểm tra để xác nhận:
+
+1. Mỗi class có đúng `target_per_class` ảnh train.
+2. Mỗi class có tỷ lệ `70% normal`, `10% gaussian_blur`, `10% motion_blur`, `10% unsharp_mask`.
+3. Tổng ảnh của từng class bằng đúng bộ dữ liệu V1 tương ứng.
+4. Tên ảnh chỉ chứa bucket V2, không chứa `rain`, `sun` hoặc `night`.
+5. `valid_unseen`, `valid_traincopy` và `test` giống `data/splits` về tên file và số lượng.
+6. Không có file nào trong `data/splits` bị sửa trong quá trình chạy.
+7. Tất cả ảnh đầu ra đọc được, có mode RGB và kích thước `224 x 224`.
+8. Chạy lại cùng seed tạo cùng kế hoạch chọn ảnh và cùng tham số augmentation.
+9. Contact sheet cho từng bucket không có ảnh mất hoàn toàn đặc trưng phương tiện.
+
+Nên tạo report riêng, ví dụ:
+
+```text
+outputs/geo_v2/data_prep_counts.json
+```
+
+## 21. Phạm vi thay đổi
+
+Giai đoạn triển khai dữ liệu Geo Version 2 chỉ cần thay đổi hoặc thêm các file sau:
+
+```text
+src/image_pipelines/gaussian_blur.py
+src/image_pipelines/motion_blur.py
+src/image_pipelines/unsharp_mask.py
+src/image_pipelines/__init__.py
+src/augment_offline_v2.py
+docs/GEO_AUGMENTATION_V2.md
+```
+
+Chưa cần thay đổi frontend, backend, training loop hoặc model architecture. Khi train thử nghiệm, chỉ cần đổi `--data_dir` từ `data/augmented` sang `data/augmented_v2` và giữ nguyên toàn bộ cấu hình huấn luyện còn lại.

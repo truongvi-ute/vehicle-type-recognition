@@ -15,7 +15,7 @@ Important note about resume:
 - Current `src/train.py` saves checkpoints, including `models/resnet50_best.pth`.
 - However, current `src/train.py` does **not yet expose** a `--resume_checkpoint` CLI argument.
 - Therefore, true resume-after-shutdown requires a small future code update.
-- The cells below include the intended resume cell, but mark it clearly.
+- The cells below do not include a resume-training command.
 
 ## Cell 1. Find Project Source And Augmented Data
 
@@ -84,29 +84,33 @@ data/augmented/valid_traincopy
 data/augmented/test
 ```
 
-## Cell 4. Optional: Restore Previous Models And Outputs
+## Cell 4. Optional: Prepare Clean Output Directories
 
 Purpose:
 
-- Use this when continuing from a previous Kaggle run.
-- Add the previous `resnet50_outputs.zip` or previous `models/outputs` as a Kaggle input dataset first.
+- Use this only when starting a clean training run.
+- Remove stale checkpoints and metrics left by an earlier execution in the same Kaggle session.
 
-Example if previous run contains `models` and `outputs` folders:
+Skip this cell when previous files need to be preserved.
 
-```bash
-PREV_ROOT=$(find /kaggle/input -type d -name models | head -1 | xargs dirname)
-echo "PREV_ROOT=$PREV_ROOT"
+```python
+from pathlib import Path
+import shutil
 
-if [ -n "$PREV_ROOT" ]; then
-  cp -r "$PREV_ROOT/models" /kaggle/working/VehicleTypeRecognition/ || true
-  cp -r "$PREV_ROOT/outputs" /kaggle/working/VehicleTypeRecognition/ || true
-fi
+project_dir = Path("/kaggle/working/VehicleTypeRecognition")
+
+for folder in ["models", "outputs"]:
+    shutil.rmtree(project_dir / folder, ignore_errors=True)
+
+(project_dir / "models").mkdir(parents=True, exist_ok=True)
+(project_dir / "outputs").mkdir(parents=True, exist_ok=True)
+
+print("Cleaned models/ and outputs/")
 ```
 
-This cell copies previous files only. It does not automatically resume training
-unless `src/train.py` supports a resume argument.
+This cell does not restore or resume a previous training run.
 
-## Cell 5A. Train ResNet-50 From Start
+## Cell 5. Train ResNet-50 From Start
 
 Purpose:
 
@@ -149,41 +153,6 @@ outputs/metrics_resnet50.json
 - validation loss/accuracy
 - test loss/accuracy
 - checkpoint path
-
-## Cell 5B. Intended Resume Training Cell
-
-Purpose:
-
-- Resume training after Kaggle shuts down.
-
-Current status:
-
-- This is the desired command shape.
-- It requires `src/train.py` to support `--resume_checkpoint`.
-- Current repo code does not fully support this yet.
-
-```bash
-!cd /kaggle/working/VehicleTypeRecognition && python src/train.py \
-    --data_dir data/augmented \
-    --model resnet50 \
-    --batch_size 32 \
-    --epochs 30 \
-    --patience 7 \
-    --lr_head 1e-3 \
-    --lr_backbone 1e-5 \
-    --num_workers 2 \
-    --resume_checkpoint models/resnet50_best.pth
-```
-
-When resume support is implemented, expected behavior:
-
-- load model weights
-- load optimizer state
-- continue from `checkpoint_epoch + 1`
-- append to or preserve `outputs/history_resnet50.json`
-- continue saving best checkpoints
-
-Until then, use Cell 5A for a normal run.
 
 ## Cell 6. Plot Loss Directly On Kaggle
 
@@ -501,80 +470,7 @@ outputs/resnet50_test_support_per_class.png
 outputs/resnet50_test_class_ratio.png
 ```
 
-## Cell 12. Optional: Plot Data Prep Matrices
-
-Purpose:
-
-- Draw class distribution and augmentation-policy matrix charts.
-- This requires `outputs/data_prep_counts.json`.
-
-If `data_prep_counts.json` already exists in your Kaggle input, copy it into
-the working project first:
-
-```bash
-DATA_PREP_JSON=$(find /kaggle/input -type f -name data_prep_counts.json | head -1)
-echo "DATA_PREP_JSON=$DATA_PREP_JSON"
-
-if [ -n "$DATA_PREP_JSON" ]; then
-  mkdir -p /kaggle/working/VehicleTypeRecognition/outputs
-  cp "$DATA_PREP_JSON" /kaggle/working/VehicleTypeRecognition/outputs/data_prep_counts.json
-fi
-```
-
-Then plot:
-
-```bash
-!cd /kaggle/working/VehicleTypeRecognition && python src/plot_data_prep_matrices.py \
-    --report outputs/data_prep_counts.json \
-    --out_dir outputs/figures
-```
-
-Display directly:
-
-```python
-from pathlib import Path
-from IPython.display import Image, display
-
-FIG_DIR = Path("/kaggle/working/VehicleTypeRecognition/outputs/figures")
-
-for path in sorted(FIG_DIR.glob("data_prep_*.png")):
-    print(path.name)
-    display(Image(filename=str(path)))
-```
-
-Expected files:
-
-```text
-outputs/figures/data_prep_source_target_matrix.png
-outputs/figures/data_prep_bucket_count_matrix.png
-outputs/figures/data_prep_orig_geo_matrix.png
-outputs/figures/data_prep_policy_check_matrix.png
-```
-
-## Cell 13. Optional: Generate SVG Figures From Repo Script
-
-Purpose:
-
-- Use the repo plotting script to generate report-ready SVGs.
-
-```bash
-!cd /kaggle/working/VehicleTypeRecognition && python src/plot_results.py \
-    --history outputs/history_resnet50.json \
-    --evaluation outputs/evaluation_resnet50_best.json \
-    --split test \
-    --out_dir outputs/figures
-```
-
-Expected files:
-
-```text
-outputs/figures/resnet50_loss.svg
-outputs/figures/resnet50_confusion_matrix_test.svg
-```
-
-This cell is optional because earlier cells already draw PNGs directly.
-
-## Cell 14. Inspect Output Files Before Zipping
+## Cell 12. Inspect Output Files Before Zipping
 
 Purpose:
 
@@ -600,14 +496,7 @@ outputs/resnet50_test_support_per_class.png
 outputs/resnet50_test_class_ratio.png
 ```
 
-If using data prep matrices, also expect:
-
-```text
-outputs/data_prep_counts.json
-outputs/figures/data_prep_*.png
-```
-
-## Cell 15. Zip Models And Outputs
+## Cell 13. Zip Models And Outputs
 
 Purpose:
 
@@ -630,8 +519,7 @@ This zip should contain:
 - history JSON
 - final train metrics JSON
 - evaluation JSON with F1/accuracy/confusion matrix/classification report
-- PNG/SVG charts
-- optional data prep matrix plots
+- PNG charts
 
 ## Final Required Order
 
@@ -641,36 +529,32 @@ Use this order for a complete run:
 1. Find project source and augmented data
 2. Copy project and data into working directory
 3. Verify dataset structure
-4. Optional restore previous models/outputs
-5. Train ResNet-50 from start, or resume when resume support exists
+4. Optional prepare clean model/output directories
+5. Train ResNet-50 from start
 6. Plot loss and validation accuracy
 7. Evaluate best checkpoint
 8. Print main evaluation numbers
 9. Plot confusion matrix
 10. Plot F1 / precision / recall per class
 11. Plot class support / class ratio
-12. Optional plot data prep matrices
-13. Optional generate SVG figures
-14. Inspect output files
-15. Zip models and outputs
+12. Inspect output files
+13. Zip models and outputs
 ```
 
 ## Requirement Checklist
 
-| Requirement | Covered by cells |
-|-------------|------------------|
-| Save train loss, valid loss, and accuracy by epoch | Cell 5A, Cell 6 |
-| Save best checkpoint | Cell 5A |
-| Evaluate on test and valid_unseen | Cell 7 |
-| Accuracy | Cell 7, Cell 8 |
-| Precision / Recall / F1 per class | Cell 7, Cell 8, Cell 10 |
-| Macro F1 and Weighted F1 | Cell 7, Cell 8 |
-| Confusion matrix | Cell 7, Cell 9 |
-| Classification report | Cell 7 |
-| Loss chart | Cell 6 |
-| F1 / accuracy chart by class | Cell 10 |
-| Class ratio chart | Cell 11 |
-| Data prep matrix chart | Cell 12 |
-| Zip all outputs | Cell 15 |
-| Resume after shutdown | Cell 4 + Cell 5B, but requires future `src/train.py --resume_checkpoint` support |
-
+| Requirement                                        | Covered by cells                                                                 |
+| -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Save train loss, valid loss, and accuracy by epoch | Cell 5, Cell 6                                                                   |
+| Save best checkpoint                               | Cell 5                                                                           |
+| Evaluate on test and valid_unseen                  | Cell 7                                                                           |
+| Accuracy                                           | Cell 7, Cell 8                                                                   |
+| Precision / Recall / F1 per class                  | Cell 7, Cell 8, Cell 10                                                          |
+| Macro F1 and Weighted F1                           | Cell 7, Cell 8                                                                   |
+| Confusion matrix                                   | Cell 7, Cell 9                                                                   |
+| Classification report                              | Cell 7                                                                           |
+| Loss chart                                         | Cell 6                                                                           |
+| F1 / accuracy chart by class                       | Cell 10                                                                          |
+| Class ratio chart                                  | Cell 11                                                                          |
+| Zip all outputs                                    | Cell 13                                                                          |
+| Resume after shutdown                              | Not available until `src/train.py` supports `--resume_checkpoint`                |
