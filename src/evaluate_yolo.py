@@ -1,177 +1,297 @@
+"""Evaluate a selected YOLO-cls checkpoint without modifying model selection."""
+
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Any
 
-import torch
-from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-import sys
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+EXPECTED_CLASS_NAMES = [
+    "bicycle",
+    "boat",
+    "bus",
+    "car",
+    "helicopter",
+    "minibus",
+    "motorcycle",
+    "taxi",
+    "train",
+    "truck",
+]
 
-from backend.utils.class_names import CLASS_NAMES
+
+def resolve_path(path: str | Path) -> Path:
+    candidate = Path(path).expanduser()
+    return candidate.resolve() if candidate.is_absolute() else (PROJECT_ROOT / candidate).resolve()
 
 
-def split_exists(data_dir: Path, split_name: str) -> bool:
-    return (data_dir / split_name).is_dir()
+def save_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def get_image_files(path: Path) -> List[Path]:
-    exts = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-    return [p for p in path.rglob("*") if p.is_file() and p.suffix.lower() in exts]
+def model_class_names(model) -> list[str]:
+    names = model.names
+    if isinstance(names, dict):
+        return [str(names[index]) for index in sorted(names)]
+    return [str(name) for name in names]
+
+
+def set_full_image_transform(model, imgsz: int) -> None:
+    import torch
+    import torchvision.transforms as transforms
+
+    model.model.transforms = transforms.Compose(
+        [
+            transforms.Resize(
+                (imgsz, imgsz),
+                interpolation=transforms.InterpolationMode.BILINEAR,
+                antialias=True,
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=torch.tensor([0.0, 0.0, 0.0]),
+                std=torch.tensor([1.0, 1.0, 1.0]),
+            ),
+        ]
+    )
+
+
+def collect_split(
+    split_dir: Path,
+    class_names: list[str],
+) -> tuple[list[str], list[int]]:
+    actual_classes = sorted(path.name for path in split_dir.iterdir() if path.is_dir())
+    if actual_classes != class_names:
+        raise ValueError(
+            f"Class mismatch in {split_dir}. Expected={class_names}, actual={actual_classes}"
+        )
+
+    paths: list[str] = []
+    targets: list[int] = []
+    for target, class_name in enumerate(class_names):
+        class_paths = sorted(
+            path
+            for path in (split_dir / class_name).rglob("*")
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        )
+        if not class_paths:
+            raise ValueError(f"No images found in {split_dir / class_name}")
+        paths.extend(str(path) for path in class_paths)
+        targets.extend([target] * len(class_paths))
+    return paths, targets
 
 
 def evaluate_split(
     model,
     split_dir: Path,
-    class_names: List[str]
-) -> Dict[str, object]:
-    print(f"Đang đánh giá tập: {split_dir.name}...")
-    
-    # Initialize metric accumulators
-    all_preds = []
-    all_targets = []
-    
-    # We map class directory names to index
-    class_to_idx = {name: idx for idx, name in enumerate(class_names)}
-    
-    # Load and predict images
-    image_paths = get_image_files(split_dir)
-    if not image_paths:
-        print(f"Cảnh báo: Không tìm thấy ảnh trong {split_dir}")
-        return {
-            "loss": 0.0,
-            "accuracy": 0.0,
-            "samples": 0,
-            "classification_report": {},
-            "confusion_matrix": []
-        }
-        
-    for img_path in image_paths:
-        true_class = img_path.parent.name
-        if true_class not in class_to_idx:
-            continue
-        
-        target_idx = class_to_idx[true_class]
-        
-        try:
-            # YOLO prediction
-            results = model(img_path, verbose=False)
-            pred_idx = int(results[0].probs.top1)
-            
-            all_preds.append(pred_idx)
-            all_targets.append(target_idx)
-        except Exception as e:
-            print(f"Lỗi khi xử lý ảnh {img_path}: {e}")
-            continue
+    class_names: list[str],
+    imgsz: int,
+    batch: int,
+    device: str,
+) -> dict[str, Any]:
+    from sklearn.metrics import classification_report, confusion_matrix
 
-    total_samples = len(all_targets)
-    correct = sum(1 for p, t in zip(all_preds, all_targets) if p == t)
-    accuracy = correct / max(total_samples, 1)
+    image_paths, targets = collect_split(split_dir, class_names)
+    predictions: list[int] = []
+    chunk_size = max(batch * 4, 128)
 
-    metrics = {
-        "loss": 0.0, # YOLO-cls validation doesn't easily expose raw cross-entropy without loader
-        "accuracy": round(accuracy, 6),
-        "samples": total_samples,
-        "classification_report": {},
-        "confusion_matrix": []
+    print(f"Evaluating {split_dir.name}: {len(image_paths):,} images")
+    for start in range(0, len(image_paths), chunk_size):
+        chunk = image_paths[start : start + chunk_size]
+        results = model.predict(
+            source=chunk,
+            imgsz=imgsz,
+            batch=batch,
+            device=device,
+            verbose=False,
+            stream=False,
+        )
+        predictions.extend(int(result.probs.top1) for result in results)
+
+    if len(predictions) != len(targets):
+        raise RuntimeError(
+            f"Prediction count mismatch: {len(predictions)} predictions, {len(targets)} targets"
+        )
+
+    accuracy = sum(pred == target for pred, target in zip(predictions, targets)) / len(targets)
+    report = classification_report(
+        targets,
+        predictions,
+        labels=list(range(len(class_names))),
+        target_names=class_names,
+        output_dict=True,
+        zero_division=0,
+    )
+    matrix = confusion_matrix(
+        targets,
+        predictions,
+        labels=list(range(len(class_names))),
+    )
+    return {
+        "loss": None,
+        "loss_note": "Cross-entropy loss was not measured by this prediction pass.",
+        "accuracy": round(float(accuracy), 6),
+        "samples": len(targets),
+        "classification_report": report,
+        "confusion_matrix": matrix.tolist(),
     }
 
-    try:
-        from sklearn.metrics import classification_report, confusion_matrix
 
-        metrics["classification_report"] = classification_report(
-            all_targets,
-            all_preds,
-            labels=list(range(len(class_names))),
-            target_names=class_names,
-            output_dict=True,
-            zero_division=0,
-        )
-        metrics["confusion_matrix"] = confusion_matrix(
-            all_targets,
-            all_preds,
-            labels=list(range(len(class_names))),
-        ).tolist()
-    except Exception as exc:
-        metrics["classification_report_error"] = str(exc)
-        # Fallback simple classification report if sklearn is missing
-        report = {}
-        for idx, cls in enumerate(class_names):
-            tp = sum(1 for p, t in zip(all_preds, all_targets) if p == idx and t == idx)
-            fp = sum(1 for p, t in zip(all_preds, all_targets) if p == idx and t != idx)
-            fn = sum(1 for p, t in zip(all_preds, all_targets) if p != idx and t == idx)
-            support = sum(1 for t in all_targets if t == idx)
-            
-            prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-            rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-            f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
-            
-            report[cls] = {
-                "precision": round(prec, 4),
-                "recall": round(rec, 4),
-                "f1-score": round(f1, 4),
-                "support": support
-            }
-        report["macro avg"] = {
-            "precision": round(sum(r["precision"] for r in report.values()) / len(class_names), 4),
-            "recall": round(sum(r["recall"] for r in report.values()) / len(class_names), 4),
-            "f1-score": round(sum(r["f1-score"] for r in report.values()) / len(class_names), 4),
-            "support": total_samples
+def update_metrics(metrics_path: Path, evaluation: dict[str, Any]) -> None:
+    if metrics_path.is_file():
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    else:
+        metrics = {
+            "model": "yolo",
+            "architecture": "yolov8n-cls",
+            "checkpoint": "models/yolo/yolo_cls_best.pt",
         }
-        metrics["classification_report"] = report
 
-    return metrics
+    metrics["dataset_id"] = evaluation.get("dataset_id")
+    metrics["dataset_variant"] = evaluation.get("dataset_variant")
+
+    for split in ["valid_unseen", "test", "valid_traincopy"]:
+        split_result = evaluation.get(split)
+        if split_result is None:
+            if split not in metrics:
+                metrics[split] = None
+            continue
+        report = split_result["classification_report"]
+        previous_loss = None
+        if isinstance(metrics.get(split), dict):
+            previous_loss = metrics[split].get("loss")
+        metrics[split] = {
+            "loss": previous_loss,
+            "accuracy": split_result["accuracy"],
+            "macro_f1": report["macro avg"]["f1-score"],
+            "weighted_f1": report["weighted avg"]["f1-score"],
+            "samples": split_result["samples"],
+        }
+    save_json(metrics_path, metrics)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Đánh giá mô hình YOLO-cls trên các tập splits.")
-    parser.add_argument("--model_path", type=str, default="models/yolo_cls_best.pt")
-    parser.add_argument("--data_dir", type=str, default="data/augmented")
-    parser.add_argument("--output", type=str, default="outputs/evaluation_yolo_cls_best.json")
-    args = parser.parse_args()
+def save_class_metrics_csv(evaluation: dict[str, Any], output_path: Path) -> None:
+    import pandas as pd
 
-    model_file = Path(args.model_path)
-    if not model_file.is_file():
-        print(f"Lỗi: Không tìm thấy file mô hình tại {args.model_path}")
-        sys.exit(1)
+    report = evaluation["test"]["classification_report"]
+    rows = [
+        {
+            "class": class_name,
+            "precision": report[class_name]["precision"],
+            "recall": report[class_name]["recall"],
+            "f1": report[class_name]["f1-score"],
+            "support": int(report[class_name]["support"]),
+        }
+        for class_name in evaluation["class_names"]
+    ]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows).to_csv(output_path, index=False)
 
-    data_path = Path(args.data_dir)
-    if not data_path.is_dir():
-        print(f"Lỗi: Không tìm thấy thư mục dữ liệu {args.data_dir}")
-        sys.exit(1)
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Evaluate YOLO-cls on valid_unseen and official test.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--model_path", type=str, default="models/yolo/yolo_cls_best.pt")
+    parser.add_argument("--data_dir", type=str, required=True)
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="outputs/yolo/evaluation_yolo_cls_best.json",
+    )
+    parser.add_argument(
+        "--metrics_output",
+        type=str,
+        default="outputs/yolo/metrics_yolo.json",
+    )
+    parser.add_argument("--imgsz", type=int, default=224)
+    parser.add_argument("--batch", type=int, default=128)
+    parser.add_argument("--device", type=str, default="0")
+    parser.add_argument(
+        "--dataset_id",
+        choices=["raw_original", "raw_cleaning"],
+        default=None,
+    )
+    parser.add_argument("--dataset_variant", choices=["v1", "v2"], default=None)
+    parser.add_argument("--include_valid_traincopy", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    model_path = resolve_path(args.model_path)
+    data_dir = resolve_path(args.data_dir)
+    output_path = resolve_path(args.output)
+    metrics_path = resolve_path(args.metrics_output)
+
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
+    if not data_dir.is_dir():
+        raise FileNotFoundError(f"Dataset not found: {data_dir}")
 
     from ultralytics import YOLO
-    print(f"Đang nạp mô hình YOLO từ: {args.model_path}...")
-    model = YOLO(args.model_path)
 
-    result = {
-        "checkpoint": args.model_path,
-        "data_dir": args.data_dir,
-        "class_names": CLASS_NAMES,
+    model = YOLO(str(model_path))
+    set_full_image_transform(model, args.imgsz)
+    class_names = model_class_names(model)
+    if class_names != EXPECTED_CLASS_NAMES:
+        raise ValueError(
+            f"Unexpected checkpoint class mapping. Expected={EXPECTED_CLASS_NAMES}, actual={class_names}"
+        )
+
+    result: dict[str, Any] = {
+        "checkpoint": str(model_path),
+        "data_dir": str(data_dir),
+        "dataset_id": args.dataset_id,
+        "dataset_variant": args.dataset_variant,
+        "class_names": class_names,
         "primary_metric_split": "valid_unseen",
         "official_evaluation_split": "test",
+        "input_transform": "full-image resize to 224x224; no crop; no TTA",
     }
 
-    # Evaluate splits
-    for split in ["valid_unseen", "test", "valid_traincopy"]:
-        split_dir = data_path / split
-        if split_dir.is_dir():
-            result[split] = evaluate_split(model, split_dir, CLASS_NAMES)
-        else:
-            result[split] = None
+    for split_name in ["valid_unseen", "test"]:
+        split_dir = data_dir / split_name
+        if not split_dir.is_dir():
+            raise FileNotFoundError(f"Missing split: {split_dir}")
+        result[split_name] = evaluate_split(
+            model,
+            split_dir,
+            class_names,
+            args.imgsz,
+            args.batch,
+            args.device,
+        )
 
-    # Write output JSON
-    out_file = Path(args.output)
-    out_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
+    auxiliary_dir = data_dir / "valid_traincopy"
+    if args.include_valid_traincopy and auxiliary_dir.is_dir():
+        result["valid_traincopy"] = evaluate_split(
+            model,
+            auxiliary_dir,
+            class_names,
+            args.imgsz,
+            args.batch,
+            args.device,
+        )
+    else:
+        result["valid_traincopy"] = None
 
-    print(f"Đã lưu kết quả đánh giá mô hình YOLO thành công vào: {args.output}")
+    save_json(output_path, result)
+    update_metrics(metrics_path, result)
+    save_class_metrics_csv(result, output_path.parent / "yolo_class_metrics.csv")
+
+    test_report = result["test"]["classification_report"]
+    print(f"Saved evaluation: {output_path}")
+    print(f"Validation accuracy: {result['valid_unseen']['accuracy']:.4f}")
+    print(f"Test accuracy      : {result['test']['accuracy']:.4f}")
+    print(f"Test macro F1      : {test_report['macro avg']['f1-score']:.4f}")
+    print(f"Test weighted F1   : {test_report['weighted avg']['f1-score']:.4f}")
 
 
 if __name__ == "__main__":

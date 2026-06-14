@@ -1,0 +1,19 @@
+{
+  "model": "resnet50",
+  "architecture": "resnet50",
+  "checkpoint": "models/resnet50/resnet50_best.pth",
+  "primary_metric_split": "valid_unseen",
+  "official_evaluation_split": "test",
+  "valid_unseen": {
+    "loss": 0.700773,
+    "accuracy": 0.926429
+  },
+  "test": {
+    "loss": 0.70101,
+    "accuracy": 0.932673
+  },
+  "valid_traincopy": {
+    "loss": 0.577264,
+    "accuracy": 0.989813
+  }
+}

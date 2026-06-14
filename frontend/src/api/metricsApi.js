@@ -1,4 +1,40 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const API_BASE_URL =
+  (typeof window !== "undefined" && window.__API_BASE_URL__) ||
+  "http://localhost:5000";
+
+async function requestJson(path, fallbackMessage) {
+  const response = await fetch(`${API_BASE_URL}${path}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || fallbackMessage);
+  }
+  return payload;
+}
+
+export function fetchExperimentCatalog() {
+  return requestJson("/api/metrics/experiments", "Không thể tải danh mục thí nghiệm.");
+}
+
+export function fetchExperiment(experimentId) {
+  return requestJson(
+    `/api/metrics/experiment?id=${encodeURIComponent(experimentId)}`,
+    "Không thể tải kết quả thí nghiệm.",
+  );
+}
+
+export function fetchDatasetProfile(datasetId, versionId) {
+  return requestJson(
+    `/api/metrics/dataset-profile?dataset=${encodeURIComponent(datasetId)}&version=${encodeURIComponent(versionId)}`,
+    "Không thể tải thống kê dataset.",
+  );
+}
+
+export function fetchExperimentComparison(firstId, secondId) {
+  return requestJson(
+    `/api/metrics/compare?first=${encodeURIComponent(firstId)}&second=${encodeURIComponent(secondId)}`,
+    "Không thể so sánh hai thí nghiệm.",
+  );
+}
 
 export async function fetchRuns() {
   const response = await fetch(`${API_BASE_URL}/api/metrics/runs`);

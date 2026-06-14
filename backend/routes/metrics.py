@@ -5,11 +5,64 @@ import json
 from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request
 
+from services.experiment_metrics import (
+    ExperimentDataError,
+    build_catalog,
+    compare_experiments,
+    load_dataset_profile,
+    load_experiment,
+)
+
 metrics_bp = Blueprint("metrics", __name__)
 
 
 def get_outputs_dir() -> Path:
     return Path(current_app.root_path).parent / "outputs"
+
+
+@metrics_bp.get("/metrics/experiments")
+def get_experiments() -> tuple[object, int]:
+    try:
+        return jsonify(build_catalog(get_outputs_dir())), 200
+    except ExperimentDataError as exc:
+        return jsonify({"error": str(exc)}), 422
+
+
+@metrics_bp.get("/metrics/experiment")
+def get_experiment() -> tuple[object, int]:
+    experiment_id = request.args.get("id", "").strip()
+    if not experiment_id:
+        return jsonify({"error": "Missing 'id' query parameter"}), 400
+    try:
+        return jsonify(load_experiment(get_outputs_dir(), experiment_id)), 200
+    except ExperimentDataError as exc:
+        return jsonify({"error": str(exc)}), 422
+
+
+@metrics_bp.get("/metrics/dataset-profile")
+def get_dataset_profile() -> tuple[object, int]:
+    dataset_id = request.args.get("dataset", "").strip()
+    version_id = request.args.get("version", "").strip()
+    if not dataset_id or not version_id:
+        return jsonify({"error": "Missing 'dataset' or 'version' query parameter"}), 400
+    try:
+        return jsonify(
+            load_dataset_profile(get_outputs_dir(), dataset_id, version_id)
+        ), 200
+    except ExperimentDataError as exc:
+        return jsonify({"error": str(exc)}), 422
+
+
+@metrics_bp.get("/metrics/compare")
+def compare_experiment_runs() -> tuple[object, int]:
+    first_id = request.args.get("first", "").strip()
+    second_id = request.args.get("second", "").strip()
+    if not first_id or not second_id:
+        return jsonify({"error": "Missing 'first' or 'second' query parameter"}), 400
+    try:
+        return jsonify(compare_experiments(get_outputs_dir(), first_id, second_id)), 200
+    except ExperimentDataError as exc:
+        return jsonify({"error": str(exc)}), 422
 
 
 @metrics_bp.get("/metrics/runs")

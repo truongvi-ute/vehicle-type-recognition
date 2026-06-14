@@ -11,20 +11,68 @@ import Dashboard from "./components/Dashboard";
 import "./styles/App.css";
 
 const MODEL_OPTIONS = [
+  // ResNet-50
   {
-    label: "ResNet-50",
-    value: "resnet50_best",
-    description: "CNN baseline",
+    label: "ResNet-50 (Raw Original V1)",
+    value: "resnet50_raw_original_v1_best",
+    description: "V1 Weather - Raw",
   },
   {
-    label: "YOLO-cls",
-    value: "yolo_cls_best",
-    description: "Fast classifier",
+    label: "ResNet-50 (Raw Original V2)",
+    value: "resnet50_raw_original_v2_best",
+    description: "V2 Blur - Raw",
   },
   {
-    label: "ViT",
-    value: "vit_base_patch16_224_best",
-    description: "Transformer",
+    label: "ResNet-50 (Raw Cleaning V1)",
+    value: "resnet50_raw_cleaning_v1_best",
+    description: "V1 Weather - Cleaned",
+  },
+  {
+    label: "ResNet-50 (Raw Cleaning V2)",
+    value: "resnet50_raw_cleaning_v2_best",
+    description: "V2 Blur - Cleaned",
+  },
+  // YOLO-cls
+  {
+    label: "YOLO-cls (Raw Original V1)",
+    value: "yolo_raw_original_v1_best",
+    description: "V1 Weather - Raw",
+  },
+  {
+    label: "YOLO-cls (Raw Original V2)",
+    value: "yolo_raw_original_v2_best",
+    description: "V2 Blur - Raw",
+  },
+  {
+    label: "YOLO-cls (Raw Cleaning V1)",
+    value: "yolo_raw_cleaning_v1_best",
+    description: "V1 Weather - Cleaned",
+  },
+  {
+    label: "YOLO-cls (Raw Cleaning V2)",
+    value: "yolo_raw_cleaning_v2_best",
+    description: "V2 Blur - Cleaned",
+  },
+  // ViT
+  {
+    label: "ViT (Raw Original V1)",
+    value: "vit_raw_original_v1_best",
+    description: "V1 Weather - Raw ViT",
+  },
+  {
+    label: "ViT (Raw Original V2)",
+    value: "vit_raw_original_v2_best",
+    description: "V2 Blur - Raw ViT",
+  },
+  {
+    label: "ViT (Raw Cleaning V1)",
+    value: "vit_raw_cleaning_v1_best",
+    description: "V1 Weather - Cleaned ViT",
+  },
+  {
+    label: "ViT (Raw Cleaning V2)",
+    value: "vit_raw_cleaning_v2_best",
+    description: "V2 Blur - Cleaned ViT",
   },
 ];
 
@@ -48,6 +96,21 @@ const PIPELINE_OPTIONS = [
     label: "Night",
     value: "night",
     description: "Night simulation",
+  },
+  {
+    label: "Gaussian Blur",
+    value: "gaussian",
+    description: "Gaussian noise/blur",
+  },
+  {
+    label: "Motion Blur",
+    value: "motion",
+    description: "Motion blur effect",
+  },
+  {
+    label: "Unsharp Masking",
+    value: "unsharp",
+    description: "Unsharp masking sharpening",
   },
 ];
 
@@ -207,6 +270,7 @@ function App() {
               selectedPipeline={selectedPipeline}
               onChange={handlePipelineChange}
               disabled={isLoading}
+              selectedModel={selectedModel}
             />
 
             {error ? <div className="errorBox">{error}</div> : null}

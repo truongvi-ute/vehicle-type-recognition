@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "id": "resnet50",
+      "label": "ResNet-50"
+    },
+    {
+      "id": "yolo",
+      "label": "YOLOv8n-cls"
+    },
+    {
+      "id": "vit",
+      "label": "ViT-B/16"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "raw_original",
+      "label": "Raw Original",
+      "description": "Bộ ảnh tải từ nguồn, chưa lọc nhiễu thủ công."
+    },
+    {
+      "id": "raw_cleaning",
+      "label": "Raw Cleaning",
+      "description": "Bộ ảnh đã được nhóm lọc nhiễu thủ công."
+    }
+  ],
+  "versions": [
+    {
+      "id": "v1",
+      "label": "V1 - Điều kiện môi trường",
+      "description": "70% Normal + 10% Rain + 10% Sun + 10% Night"
+    },
+    {
+      "id": "v2",
+      "label": "V2 - Làm mờ và làm nét",
+      "description": "70% Normal + 10% Gaussian + 10% Motion + 10% Unsharp"
+    }
+  ],
+  "dataset_profiles": [
+    {
+      "id": "raw_original__v1",
+      "dataset": "raw_original",
+      "version": "v1",
+      "base_dataprep": "data_raw_original_v1_counts.json",
+      "augmentation_dataprep": "data_raw_original_v1_counts.json"
+    },
+    {
+      "id": "raw_original__v2",
+      "dataset": "raw_original",
+      "version": "v2",
+      "base_dataprep": "data_raw_original_v1_counts.json",
+      "augmentation_dataprep": "data_raw_original_v2_counts.json"
+    },
+    {
+      "id": "raw_cleaning__v1",
+      "dataset": "raw_cleaning",
+      "version": "v1",
+      "base_dataprep": "data_cleaning_v1_counts.json",
+      "augmentation_dataprep": "data_cleaning_v1_counts.json"
+    },
+    {
+      "id": "raw_cleaning__v2",
+      "dataset": "raw_cleaning",
+      "version": "v2",
+      "base_dataprep": "data_cleaning_v1_counts.json",
+      "augmentation_dataprep": "data_cleaning_v2_counts.json"
+    }
+  ],
+  "experiments": [
+    {
+      "id": "resnet50__raw_original__v1",
+      "model": "resnet50",
+      "dataset": "raw_original",
+      "version": "v1",
+      "evaluation": "resnet50_raw_original_v1/evaluation_resnet50_best.json",
+      "history": "resnet50_raw_original_v1/history_resnet50.json",
+      "metrics": "resnet50_raw_original_v1/metrics_resnet50.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "resnet50__raw_original__v2",
+      "model": "resnet50",
+      "dataset": "raw_original",
+      "version": "v2",
+      "evaluation": "resnet50_raw_original_v2/evaluation_resnet50_best.json",
+      "history": "resnet50_raw_original_v2/history_resnet50.json",
+      "metrics": "resnet50_raw_original_v2/metrics_resnet50.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "resnet50__raw_cleaning__v1",
+      "model": "resnet50",
+      "dataset": "raw_cleaning",
+      "version": "v1",
+      "evaluation": "resnet50_raw_cleaning_v1/evaluation_resnet50_best.json",
+      "history": "resnet50_raw_cleaning_v1/history_resnet50.json",
+      "metrics": "resnet50_raw_cleaning_v1/metrics_resnet50.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "resnet50__raw_cleaning__v2",
+      "model": "resnet50",
+      "dataset": "raw_cleaning",
+      "version": "v2",
+      "evaluation": "resnet50_raw_cleaning_v2/evaluation_resnet50_best.json",
+      "history": "resnet50_raw_cleaning_v2/history_resnet50.json",
+      "metrics": "resnet50_raw_cleaning_v2/metrics_resnet50.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "yolo__raw_original__v1",
+      "model": "yolo",
+      "dataset": "raw_original",
+      "version": "v1",
+      "evaluation": "yolo_raw_original_v1/evaluation_yolo_cls_best.json",
+      "history": "yolo_raw_original_v1/history_yolo.json",
+      "metrics": "yolo_raw_original_v1/metrics_yolo.json",
+      "selection_metric": "maximum_valid_unseen_accuracy",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "yolo__raw_original__v2",
+      "model": "yolo",
+      "dataset": "raw_original",
+      "version": "v2",
+      "evaluation": "yolo_raw_original_v2/evaluation_yolo_cls_best.json",
+      "history": "yolo_raw_original_v2/history_yolo.json",
+      "metrics": "yolo_raw_original_v2/metrics_yolo.json",
+      "selection_metric": "maximum_valid_unseen_accuracy",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "yolo__raw_cleaning__v1",
+      "model": "yolo",
+      "dataset": "raw_cleaning",
+      "version": "v1",
+      "evaluation": "yolo_raw_cleaning_v1/evaluation_yolo_cls_best.json",
+      "history": "yolo_raw_cleaning_v1/history_yolo.json",
+      "metrics": "yolo_raw_cleaning_v1/metrics_yolo.json",
+      "selection_metric": "maximum_valid_unseen_accuracy",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "yolo__raw_cleaning__v2",
+      "model": "yolo",
+      "dataset": "raw_cleaning",
+      "version": "v2",
+      "evaluation": "yolo_raw_cleaning_v2/evaluation_yolo_cls_best.json",
+      "history": "yolo_raw_cleaning_v2/history_yolo.json",
+      "metrics": "yolo_raw_cleaning_v2/metrics_yolo.json",
+      "selection_metric": "maximum_valid_unseen_accuracy",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "vit__raw_original__v1",
+      "model": "vit",
+      "dataset": "raw_original",
+      "version": "v1",
+      "evaluation": "vit_raw_original_v1/evaluation_vit_best.json",
+      "history": "vit_raw_original_v1/history_vit.json",
+      "metrics": "vit_raw_original_v1/metrics_vit.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "vit__raw_cleaning__v1",
+      "model": "vit",
+      "dataset": "raw_cleaning",
+      "version": "v1",
+      "evaluation": "vit_raw_cleaning_v1/evaluation_vit_best.json",
+      "history": "vit_raw_cleaning_v1/history_vit.json",
+      "metrics": "vit_raw_cleaning_v1/metrics_vit.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "vit__raw_cleaning__v2",
+      "model": "vit",
+      "dataset": "raw_cleaning",
+      "version": "v2",
+      "evaluation": "vit_raw_cleaning_v2/evaluation_vit_best.json",
+      "history": "vit_raw_cleaning_v2/history_vit.json",
+      "metrics": "vit_raw_cleaning_v2/metrics_vit.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "vit__raw_original__v2",
+      "model": "vit",
+      "dataset": "raw_original",
+      "version": "v2",
+      "evaluation": "vit_raw_original_v2/evaluation_vit_best.json",
+      "history": "vit_raw_original_v2/history_vit.json",
+      "metrics": "vit_raw_original_v2/metrics_vit.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    }
+  ]
+}

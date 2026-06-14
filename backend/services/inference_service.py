@@ -30,7 +30,7 @@ def predict_image(
     models_dir: str,
     model_name: str | None = None,
     pipeline: str | None = None,
-    top_k: int = 3,
+    top_k: int = 10,
 ) -> Dict[str, object]:
     if top_k <= 0:
         raise InferenceError("top_k must be positive.")
@@ -52,19 +52,11 @@ def predict_image(
     if is_yolo:
         results = loaded.model(processed_image, verbose=False)
         probs = results[0].probs
-        topk_conf = (
-            probs.top5conf.tolist()
-            if hasattr(probs, 'top5conf') and hasattr(probs.top5conf, 'tolist')
-            else (list(probs.top5conf) if hasattr(probs, 'top5conf') else [])
-        )
-        topk_idx = list(probs.top5) if hasattr(probs, 'top5') else []
-
-        if not topk_idx:
-            probs_tensor = probs.data
-            k = min(top_k, probs_tensor.numel())
-            topk_conf_tensor, topk_idx_tensor = torch.topk(probs_tensor, k=k)
-            topk_conf = topk_conf_tensor.tolist()
-            topk_idx = topk_idx_tensor.tolist()
+        probs_tensor = probs.data
+        k = min(top_k, probs_tensor.numel(), len(CLASS_NAMES))
+        topk_conf_tensor, topk_idx_tensor = torch.topk(probs_tensor, k=k)
+        topk_conf = topk_conf_tensor.tolist()
+        topk_idx = topk_idx_tensor.tolist()
 
         for confidence, index in zip(topk_conf, topk_idx):
             predictions.append(

@@ -1,0 +1,52 @@
+{
+  "created_utc": "2026-06-13T14:35:34.831795+00:00",
+  "dataset_variant": "v2",
+  "experiment_name": "yolo_aug_v2_cleaning",
+  "data_dir": "/kaggle/input/datasets/yuuuubin2k5/dataset-angument/augmented_v2",
+  "run_dir": "/kaggle/working/VehicleTypeRecognition/outputs/yolo_runs/yolo_aug_v2_cleaning",
+  "model": "yolov8n-cls.pt",
+  "training_strategy": "transfer_learning_from_imagenet_pretrained_yolov8n_cls",
+  "split_policy": {
+    "train": "weight updates",
+    "valid_unseen": "early stopping and best checkpoint selection",
+    "test": "reserved for post-training evaluation",
+    "valid_traincopy": "auxiliary only; excluded from selection"
+  },
+  "input_pipeline": {
+    "local_preprocessing": "aspect-ratio resize and zero-pad to 224x224",
+    "training_transform": "full-image resize to 224x224 and ToTensor",
+    "random_resized_crop": false,
+    "online_auto_augment": false,
+    "online_random_erasing": false,
+    "online_flip": false
+  },
+  "hyperparameters": {
+    "max_epochs": 30,
+    "patience": 10,
+    "batch": 128,
+    "imgsz": 224,
+    "optimizer": "auto",
+    "amp": true,
+    "workers": 2,
+    "seed": 42,
+    "deterministic": true,
+    "device": "0"
+  },
+  "software": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cu128",
+    "ultralytics": "8.4.66",
+    "cuda_available": true,
+    "cuda_version": "12.8",
+    "gpu": "Tesla T4"
+  },
+  "training_summary": {
+    "completed_epochs": 30,
+    "checkpoint_selection_metric": "valid_unseen_top1_accuracy",
+    "best_checkpoint_epoch": 22,
+    "best_valid_unseen_accuracy": 0.92247,
+    "valid_loss_at_best_checkpoint": 0.41559,
+    "minimum_valid_unseen_loss_epoch": 2,
+    "minimum_valid_unseen_loss": 0.28267
+  }
+}

@@ -1,28 +1,128 @@
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, Image, CloudRain, Sun, Moon, Sparkles, Wind, Zap, AlertCircle } from "lucide-react";
 
-function PipelineSelector({ pipelines, selectedPipeline, onChange, disabled }) {
+const ICON_MAP = {
+  Image,
+  CloudRain,
+  Sun,
+  Moon,
+  Sparkles,
+  Wind,
+  Zap
+};
+
+function PipelineSelector({ selectedPipeline, onChange, disabled, selectedModel }) {
+  // Determine if the selected model is V2 based on its filename convention (e.g. contains _v2_)
+  const isV2Model = selectedModel ? selectedModel.includes("_v2_") : false;
+
+  const groups = [
+    {
+      title: "Mặc định",
+      version: "both",
+      items: [
+        {
+          label: "Normal",
+          value: "normal",
+          description: "Không áp dụng thuật toán tiền xử lý",
+          icon: "Image",
+        }
+      ]
+    },
+    {
+      title: "Giả lập Thời tiết (Weather - V1)",
+      version: "v1",
+      items: [
+        {
+          label: "Rain",
+          value: "rain",
+          description: "Giả lập hiệu ứng trời mưa",
+          icon: "CloudRain",
+        },
+        {
+          label: "Sun",
+          value: "sun",
+          description: "Giả lập chói nắng / flare",
+          icon: "Sun",
+        },
+        {
+          label: "Night",
+          value: "night",
+          description: "Giả lập ánh sáng ban đêm",
+          icon: "Moon",
+        },
+      ]
+    },
+    {
+      title: "Làm mờ & Làm nét (Blur/Sharpen - V2)",
+      version: "v2",
+      items: [
+        {
+          label: "Gaussian Blur",
+          value: "gaussian",
+          description: "Làm mờ Gaussian (Nhiễu mờ)",
+          icon: "Sparkles",
+        },
+        {
+          label: "Motion Blur",
+          value: "motion",
+          description: "Làm mờ chuyển động (Motion blur)",
+          icon: "Wind",
+        },
+        {
+          label: "Unsharp Masking",
+          value: "unsharp",
+          description: "Làm sắc nét ảnh (Unsharp mask)",
+          icon: "Zap",
+        },
+      ]
+    }
+  ];
+
   return (
     <section className="panelBlock">
       <div className="panelHeader">
         <SlidersHorizontal size={18} />
-        <h2>Pipeline</h2>
+        <h2>Thuật toán Tiền xử lý</h2>
       </div>
 
-      <div className="pipelineGrid" role="radiogroup" aria-label="Input pipeline selector">
-        {pipelines.map((pipeline) => (
-          <button
-            key={pipeline.value}
-            className={`pipelineOption ${selectedPipeline === pipeline.value ? "active" : ""}`}
-            type="button"
-            onClick={() => onChange(pipeline.value)}
-            disabled={disabled}
-            role="radio"
-            aria-checked={selectedPipeline === pipeline.value}
-            title={pipeline.description}
-          >
-            {pipeline.label}
-          </button>
-        ))}
+      <div className="pipelineGroupsContainer">
+        {groups.map((group) => {
+          const isCompatible = group.version === "both" || (isV2Model ? group.version === "v2" : group.version === "v1");
+
+          return (
+            <div key={group.title} className={`pipelineGroupSection ${!isCompatible ? "incompatibleGroup" : ""}`}>
+              <div className="pipelineGroupTitle">
+                <span>{group.title}</span>
+                {!isCompatible && (
+                  <span className="incompatibleBadge" title="Nhóm thuật toán này không thuộc tập huấn luyện của mô hình hiện tại. Kết quả dự đoán có thể bị ảnh hưởng.">
+                    <AlertCircle size={12} />
+                    Lệch tập Train
+                  </span>
+                )}
+              </div>
+
+              <div className="pipelineGrid" role="radiogroup" aria-label={group.title}>
+                {group.items.map((item) => {
+                  const IconComponent = ICON_MAP[item.icon] || Image;
+                  return (
+                    <button
+                      key={item.value}
+                      className={`pipelineOption ${selectedPipeline === item.value ? "active" : ""} ${!isCompatible ? "incompatibleOption" : ""}`}
+                      type="button"
+                      onClick={() => onChange(item.value)}
+                      disabled={disabled}
+                      role="radio"
+                      aria-checked={selectedPipeline === item.value}
+                      title={item.description}
+                    >
+                      <IconComponent size={14} className="pipelineOptionIcon" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

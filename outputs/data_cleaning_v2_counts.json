@@ -1,0 +1,87 @@
+{
+  "version": "geo_v2",
+  "config": {
+    "input_dir": "data\\cleaning\\splits\\train",
+    "output_dir": "data\\augmented_v2",
+    "splits_dir": "data\\cleaning\\splits",
+    "target_per_class": null,
+    "seed": 42,
+    "bucket_ratios": {
+      "normal": 0.7,
+      "gaussian_blur": 0.1,
+      "motion_blur": 0.1,
+      "unsharp_mask": 0.1
+    }
+  },
+  "stats": {
+    "bicycle": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "boat": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "bus": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "car": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "helicopter": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "minibus": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "motorcycle": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "taxi": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "train": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "truck": {
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
+    },
+    "__copied_valid_unseen": {
+      "total": 1767
+    },
+    "__copied_valid_traincopy": {
+      "total": 1767
+    },
+    "__copied_test": {
+      "total": 3535
+    }
+  }
+}

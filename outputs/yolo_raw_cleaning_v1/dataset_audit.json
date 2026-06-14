@@ -1,0 +1,78 @@
+{
+  "data_dir": "/kaggle/input/datasets/yuuuubin2k5/augmentedv1/augmented",
+  "expected_classes": [
+    "bicycle",
+    "boat",
+    "bus",
+    "car",
+    "helicopter",
+    "minibus",
+    "motorcycle",
+    "taxi",
+    "train",
+    "truck"
+  ],
+  "splits": {
+    "train": {
+      "total": 73900,
+      "per_class": {
+        "bicycle": 7390,
+        "boat": 7390,
+        "bus": 7390,
+        "car": 7390,
+        "helicopter": 7390,
+        "minibus": 7390,
+        "motorcycle": 7390,
+        "taxi": 7390,
+        "train": 7390,
+        "truck": 7390
+      }
+    },
+    "valid_unseen": {
+      "total": 1767,
+      "per_class": {
+        "bicycle": 78,
+        "boat": 435,
+        "bus": 200,
+        "car": 418,
+        "helicopter": 33,
+        "minibus": 74,
+        "motorcycle": 218,
+        "taxi": 45,
+        "train": 82,
+        "truck": 184
+      }
+    },
+    "test": {
+      "total": 3535,
+      "per_class": {
+        "bicycle": 157,
+        "boat": 869,
+        "bus": 399,
+        "car": 837,
+        "helicopter": 67,
+        "minibus": 147,
+        "motorcycle": 436,
+        "taxi": 90,
+        "train": 165,
+        "truck": 368
+      }
+    },
+    "valid_traincopy": {
+      "total": 1767,
+      "per_class": {
+        "bicycle": 78,
+        "boat": 435,
+        "bus": 200,
+        "car": 418,
+        "helicopter": 33,
+        "minibus": 74,
+        "motorcycle": 218,
+        "taxi": 45,
+        "train": 82,
+        "truck": 184
+      },
+      "role": "auxiliary_only_overlaps_train"
+    }
+  }
+}

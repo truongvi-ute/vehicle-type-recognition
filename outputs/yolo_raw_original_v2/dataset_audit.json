@@ -1,0 +1,78 @@
+{
+  "data_dir": "/kaggle/input/datasets/yuuuubin2k5/vehicle-yolo-augmentedv2-raworiginal/augmented_v2",
+  "expected_classes": [
+    "bicycle",
+    "boat",
+    "bus",
+    "car",
+    "helicopter",
+    "minibus",
+    "motorcycle",
+    "taxi",
+    "train",
+    "truck"
+  ],
+  "splits": {
+    "train": {
+      "total": 75620,
+      "per_class": {
+        "bicycle": 7562,
+        "boat": 7562,
+        "bus": 7562,
+        "car": 7562,
+        "helicopter": 7562,
+        "minibus": 7562,
+        "motorcycle": 7562,
+        "taxi": 7562,
+        "train": 7562,
+        "truck": 7562
+      }
+    },
+    "valid_unseen": {
+      "total": 1800,
+      "per_class": {
+        "bicycle": 81,
+        "boat": 445,
+        "bus": 203,
+        "car": 427,
+        "helicopter": 33,
+        "minibus": 74,
+        "motorcycle": 222,
+        "taxi": 45,
+        "train": 84,
+        "truck": 186
+      }
+    },
+    "test": {
+      "total": 3601,
+      "per_class": {
+        "bicycle": 162,
+        "boat": 890,
+        "bus": 406,
+        "car": 854,
+        "helicopter": 67,
+        "minibus": 148,
+        "motorcycle": 444,
+        "taxi": 91,
+        "train": 168,
+        "truck": 371
+      }
+    },
+    "valid_traincopy": {
+      "total": 1800,
+      "per_class": {
+        "bicycle": 81,
+        "boat": 445,
+        "bus": 203,
+        "car": 427,
+        "helicopter": 33,
+        "minibus": 74,
+        "motorcycle": 222,
+        "taxi": 45,
+        "train": 84,
+        "truck": 186
+      },
+      "role": "auxiliary_only_overlaps_train"
+    }
+  }
+}

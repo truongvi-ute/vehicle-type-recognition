@@ -1,5 +1,12 @@
 # Hướng dẫn Tích hợp Mô hình Phân loại YOLO
 
+> Quy trình Kaggle chuẩn để so sánh `Augmented V1 Dataset Cleaning` và
+> `Augmented V2 Dataset Cleaning` nằm tại
+> `docs/KAGGLE_YOLO_CELLS_V1_V2.md`. Quy trình mới tách train khỏi test,
+> giữ toàn bộ ảnh 224x224 thay vì `RandomResizedCrop`, và không sử dụng
+> các giá trị test loss suy diễn. Các ví dụ huấn luyện cũ bên dưới chỉ dùng
+> làm tài liệu tích hợp backend.
+
 Tài liệu này mô tả chi tiết cách tích hợp chính xác mô hình YOLO-cls (cụ thể là các mô hình phân loại YOLOv8/v11 của Ultralytics) vào dự án VehicleTypeRecognition cho cả quá trình huấn luyện (training) và suy luận (inference). Tài liệu giải quyết các khoảng cách hiện tại trong mã nguồn giữa các mô hình PyTorch tiêu chuẩn (ResNet-50, ViT) và YOLO-cls.
 
 ---

@@ -57,13 +57,13 @@ function PredictionResult({ result, pipelinePreview, isLoading, isPreviewLoading
           </div>
         </>
       ) : (
-        <div className="emptyState">Top-3 classes will appear here.</div>
+        <div className="emptyState">Class probabilities will appear here.</div>
       )}
 
       <div className="metricStrip">
         <div>
           <Gauge size={17} />
-          <span>Top-3</span>
+          <span>Top-10</span>
         </div>
         <div>
           <Clock size={17} />

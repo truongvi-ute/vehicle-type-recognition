@@ -49,6 +49,23 @@ def _candidate_paths(models_dir: Path, model_name: Optional[str]) -> list[Path]:
             model_key = "yolo"
 
         candidates = []
+        
+        # Prioritize matching by subdirectory name (e.g., models/resnet50_raw_cleaning_v1/)
+        folder_names = [raw.name]
+        stem_name = raw.name
+        if stem_name.endswith(".pth") or stem_name.endswith(".pt"):
+            stem_name = stem_name.rsplit(".", 1)[0]
+        if stem_name.endswith("_best"):
+            stem_name = stem_name[:-5]
+        if stem_name not in folder_names:
+            folder_names.append(stem_name)
+            
+        for f_name in folder_names:
+            f_dir = models_dir / f_name
+            if f_dir.is_dir():
+                candidates.extend(list(f_dir.glob("*.pth")))
+                candidates.extend(list(f_dir.glob("*.pt")))
+
         for name in names:
             if model_key:
                 candidates.append(models_dir / model_key / name)

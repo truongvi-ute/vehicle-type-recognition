@@ -1,0 +1,33 @@
+{
+  "model": "yolo",
+  "architecture": "yolov8n-cls",
+  "dataset_id": "raw_original",
+  "dataset_variant": "v2",
+  "checkpoint": "models/yolo/yolo_cls_best.pt",
+  "primary_metric_split": "valid_unseen",
+  "official_evaluation_split": "test",
+  "training_summary": {
+    "completed_epochs": 30,
+    "checkpoint_selection_metric": "valid_unseen_top1_accuracy",
+    "best_checkpoint_epoch": 29,
+    "best_valid_unseen_accuracy": 0.91278,
+    "valid_loss_at_best_checkpoint": 0.50717,
+    "minimum_valid_unseen_loss_epoch": 2,
+    "minimum_valid_unseen_loss": 0.27065
+  },
+  "valid_unseen": {
+    "loss": 0.50717,
+    "accuracy": 0.912778,
+    "macro_f1": 0.8959902868959055,
+    "weighted_f1": 0.9117952072096197,
+    "samples": 1800
+  },
+  "test": {
+    "loss": null,
+    "accuracy": 0.911969,
+    "macro_f1": 0.8875904578430512,
+    "weighted_f1": 0.9114190398212422,
+    "samples": 3601
+  },
+  "valid_traincopy": null
+}
