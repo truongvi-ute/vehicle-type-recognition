@@ -153,8 +153,8 @@ def build_full_image_trainer():
                     ),
                     transforms.ToTensor(),
                     transforms.Normalize(
-                        mean=torch.tensor([0.0, 0.0, 0.0]),
-                        std=torch.tensor([1.0, 1.0, 1.0]),
+                        mean=torch.tensor([0.485, 0.456, 0.406]),
+                        std=torch.tensor([0.229, 0.224, 0.225]),
                     ),
                 ]
             )
@@ -252,8 +252,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--model", type=str, default="yolov8n-cls.pt")
     parser.add_argument("--epochs", type=int, default=30)
-    parser.add_argument("--patience", type=int, default=10)
-    parser.add_argument("--batch", type=int, default=128)
+    parser.add_argument("--patience", type=int, default=7)
+    parser.add_argument("--batch", type=int, default=32)
     parser.add_argument("--imgsz", type=int, default=224)
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
@@ -327,7 +327,11 @@ def main() -> None:
         name=args.name,
         exist_ok=False,
         pretrained=True,
-        optimizer="auto",
+        optimizer="AdamW",
+        lr0=1e-3,
+        warmup_epochs=5,
+        weight_decay=1e-4,
+        label_smoothing=0.1,
         seed=args.seed,
         deterministic=True,
         device=args.device,
@@ -338,6 +342,7 @@ def main() -> None:
         flipud=0.0,
         erasing=0.0,
         dropout=0.0,
+        mixup=0.2,
         plots=True,
         val=True,
         verbose=True,
@@ -401,7 +406,12 @@ def main() -> None:
             "patience": args.patience,
             "batch": args.batch,
             "imgsz": args.imgsz,
-            "optimizer": "auto",
+            "optimizer": "AdamW",
+            "lr0": 1e-3,
+            "warmup_epochs": 5,
+            "weight_decay": 1e-4,
+            "label_smoothing": 0.1,
+            "mixup": 0.2,
             "amp": True,
             "workers": args.workers,
             "seed": args.seed,

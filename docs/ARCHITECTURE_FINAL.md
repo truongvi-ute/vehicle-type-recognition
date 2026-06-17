@@ -129,7 +129,7 @@ Online augmentation is optional and applies only during training batches.
 |--------------|---------------------|
 | ResNet-50 | MixUp and/or CutMix |
 | Vision Transformer | MixUp and/or CutMix |
-| YOLO-cls | Mosaic if supported by the training configuration |
+| YOLO-cls | MixUp (p=0.2, aligned with PyTorch models) |
 
 Online augmentation must not be applied to validation, test, or deployment inference.
 
