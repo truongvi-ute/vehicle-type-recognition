@@ -59,6 +59,94 @@ VIT_PARTIAL_OPEN_LAYERS: int = 4   # floor(12 / 3) = 4 block cuối
 VIT_ENCODER_LAYER_PREFIX: str = "encoder_layer_"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# MÔ HÌNH WRAPPER CHO CẢI TIẾN TRÍCH XUẤT ĐẶC TRƯNG
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MultiScaleResNet50(nn.Module):
+    """
+    Wrapper tích hợp đặc trưng đa quy mô cho ResNet-50.
+    Ghép nối đặc trưng từ Layer 3 (1024ch) và Layer 4 (2048ch) -> 3072ch.
+    """
+    def __init__(self, original_resnet: nn.Module, num_classes: int = 10):
+        super().__init__()
+        self.conv1 = original_resnet.conv1
+        self.bn1 = original_resnet.bn1
+        self.relu = original_resnet.relu
+        self.maxpool = original_resnet.maxpool
+        self.layer1 = original_resnet.layer1
+        self.layer2 = original_resnet.layer2
+        self.layer3 = original_resnet.layer3
+        self.layer4 = original_resnet.layer4
+        self.avgpool = original_resnet.avgpool
+        
+        # Classification Head nhận vector ghép nối 3072 chiều
+        self.fc = nn.Sequential(
+            nn.Linear(1024 + 2048, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(512, num_classes)
+        )
+        
+        self._arch = "resnet50"
+        self._head_name = "fc"
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        f3 = self.layer3(x)   # [B, 1024, 14, 14]
+        
+        f4 = self.layer4(f3)   # [B, 2048, 7, 7]
+        
+        p3 = torch.flatten(self.avgpool(f3), 1)  # [B, 1024]
+        p4 = torch.flatten(self.avgpool(f4), 1)  # [B, 2048]
+        
+        fused = torch.cat([p3, p4], dim=1)  # [B, 3072]
+        return self.fc(fused)
+
+
+class MultiLayerCLSViT(nn.Module):
+    """
+    Wrapper tích hợp CLS Tokens đa lớp cho Vision Transformer.
+    Trích xuất CLS tokens từ 3 block encoder cuối (Layer 10, 11, 12) -> 2304ch.
+    """
+    def __init__(self, original_vit: nn.Module, num_classes: int = 10, num_layers: int = 3):
+        super().__init__()
+        self.vit = original_vit
+        # Khóa head mặc định của ViT
+        self.vit.heads = nn.Identity()
+        
+        self.fc = nn.Linear(768 * num_layers, num_classes)
+        self.tokens: List[torch.Tensor] = []
+        self.num_layers = num_layers
+        
+        # Đăng ký forward hook trên các encoder blocks cuối cùng
+        total = len(self.vit.encoder.layers)
+        for i in range(total - num_layers, total):
+            self.vit.encoder.layers[i].register_forward_hook(self._hook())
+            
+        self._arch = "vit_base_patch16_224"
+        self._head_name = "heads"
+        self.heads = self.fc  # Alias tương thích với switch_strategy
+        self.encoder = self.vit.encoder  # Alias tương thích với switch_strategy
+
+    def _hook(self):
+        def h_fn(module, input, output):
+            self.tokens.append(output[:, 0])
+        return h_fn
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.tokens.clear()
+        _ = self.vit(x)
+        fused = torch.cat(self.tokens, dim=1)  # [B, 2304]
+        return self.fc(fused)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PHẦN 1 — XÂY DỰNG MÔ HÌNH
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -113,27 +201,13 @@ def build_model(
 
     if model_name == "resnet50":
         weights = ResNet50_Weights.DEFAULT if pretrained else None
-        model: nn.Module = models.resnet50(weights=weights)
-
-        # Thay thế FC head: Linear(2048, 1000) → Linear(2048, num_classes)
-        in_features = model.fc.in_features          # 2048
-        model.fc    = nn.Linear(in_features, num_classes)
-
-        # Metadata cho switch_strategy()
-        model._arch      = "resnet50"               # type: ignore[attr-defined]
-        model._head_name = "fc"                     # type: ignore[attr-defined]
+        original_resnet = models.resnet50(weights=weights)
+        model = MultiScaleResNet50(original_resnet, num_classes=num_classes)
 
     elif model_name == "vit_base_patch16_224":
         weights = ViT_B_16_Weights.DEFAULT if pretrained else None
-        model = models.vit_b_16(weights=weights)
-
-        # Thay thế head: Linear(768, 1000) → Linear(768, num_classes)
-        in_features       = model.heads.head.in_features   # 768
-        model.heads.head  = nn.Linear(in_features, num_classes)
-
-        # Metadata cho switch_strategy()
-        model._arch      = "vit_base_patch16_224"   # type: ignore[attr-defined]
-        model._head_name = "heads"                  # type: ignore[attr-defined]
+        original_vit = models.vit_b_16(weights=weights)
+        model = MultiLayerCLSViT(original_vit, num_classes=num_classes)
 
     model = model.to(device)
     return model

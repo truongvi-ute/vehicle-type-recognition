@@ -24,6 +24,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -114,6 +115,45 @@ class EarlyStopping:
             )
         if self.counter >= self.patience:
             self.early_stop = True
+
+
+class ClassBalancedFocalLoss(nn.Module):
+    """
+    Class-Balanced Focal Loss hỗ trợ cả nhãn 1D (đánh giá) và nhãn 2D soft labels (MixUp/CutMix).
+    """
+    def __init__(self, class_counts: List[int], beta: float = 0.999, gamma: float = 2.0, label_smoothing: float = 0.0):
+        super().__init__()
+        self.beta = beta
+        self.gamma = gamma
+        self.label_smoothing = label_smoothing
+        
+        # Tính toán trọng số Class-Balanced
+        weights = []
+        for count in class_counts:
+            w = (1.0 - beta) / (1.0 - (beta ** count))
+            weights.append(w)
+        weights_tensor = torch.tensor(weights, dtype=torch.float32)
+        # Chuẩn hóa để tổng các trọng số bằng số lượng lớp (K=10)
+        self.register_buffer("weights", weights_tensor / weights_tensor.sum() * len(class_counts))
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        log_p = F.log_softmax(logits, dim=-1)
+        p = torch.exp(log_p)
+        
+        if targets.ndim == 1:
+            num_classes = logits.size(-1)
+            targets_one_hot = F.one_hot(targets, num_classes=num_classes).to(logits.dtype)
+        else:
+            targets_one_hot = targets
+            
+        if self.label_smoothing > 0:
+            num_classes = logits.size(-1)
+            targets_one_hot = targets_one_hot * (1.0 - self.label_smoothing) + self.label_smoothing / num_classes
+
+        focal_term = ((1.0 - p) ** self.gamma) * log_p
+        weighted_loss = - targets_one_hot * focal_term * self.weights
+        
+        return weighted_loss.sum(dim=-1).mean()
 
 
 def build_phase1_optimizer(model: nn.Module, lr_head: float) -> torch.optim.AdamW:
@@ -287,7 +327,14 @@ def train(
         pretrained=True,
         device=device,
     )
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1).to(device)
+    # Số lượng mẫu huấn luyện thực tế gốc của 10 lớp phương tiện
+    class_counts = [1334, 7390, 3395, 7111, 568, 1251, 3703, 765, 1403, 3125]
+    criterion = ClassBalancedFocalLoss(
+        class_counts=class_counts,
+        beta=0.999,
+        gamma=2.0,
+        label_smoothing=0.1
+    ).to(device)
 
     checkpoint_dir = os.path.join(CHECKPOINT_DIR, model_key)
     output_dir = os.path.join(OUTPUT_DIR, model_key)

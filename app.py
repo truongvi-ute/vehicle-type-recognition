@@ -381,7 +381,6 @@ html, body, [class*="css"] {
 def get_inference_transform() -> v2.Compose:
     """Transform chuẩn hoá ảnh đầu vào cho inference."""
     return v2.Compose([
-        v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
         v2.ToImage(),
         v2.ToDtype(torch.float32, scale=True),
         v2.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
@@ -450,8 +449,9 @@ def predict(
     device    = next(model.parameters()).device
     transform = get_inference_transform()
 
-    # Chuẩn bị tensor
-    img_rgb = image.convert("RGB")
+    # Chuẩn bị tensor bằng base pipeline có Reflective Padding
+    from src.image_pipelines.base import apply_base_pipeline
+    img_rgb = apply_base_pipeline(image.convert("RGB"))
     tensor  = transform(img_rgb).unsqueeze(0).to(device)   # (1, 3, 224, 224)
 
     # Inference
