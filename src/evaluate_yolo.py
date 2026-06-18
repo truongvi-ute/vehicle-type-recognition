@@ -42,6 +42,13 @@ def model_class_names(model) -> list[str]:
 
 
 def set_full_image_transform(model, imgsz: int) -> None:
+    """Set evaluation transform to match the training transform in train_yolo.py.
+
+    IMPORTANT: The training pipeline (FullImageClassificationDataset in train_yolo.py)
+    uses ImageNet normalisation (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]).
+    This function MUST match that transform exactly, otherwise there will be a severe
+    train-eval distribution mismatch that degrades accuracy by ~10%.
+    """
     import torch
     import torchvision.transforms as transforms
 
@@ -54,8 +61,8 @@ def set_full_image_transform(model, imgsz: int) -> None:
             ),
             transforms.ToTensor(),
             transforms.Normalize(
-                mean=torch.tensor([0.0, 0.0, 0.0]),
-                std=torch.tensor([1.0, 1.0, 1.0]),
+                mean=torch.tensor([0.485, 0.456, 0.406]),  # ImageNet mean — must match train_yolo.py
+                std=torch.tensor([0.229, 0.224, 0.225]),   # ImageNet std  — must match train_yolo.py
             ),
         ]
     )
