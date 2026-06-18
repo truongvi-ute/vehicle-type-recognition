@@ -1,0 +1,457 @@
+Created At: 2026-06-14T09:28:11Z
+Completed At: 2026-06-14T09:28:13Z
+
+				The command completed successfully.
+				Output:
+				<truncated 626 lines>
++  align-items: center;
++  gap: 8px;
++  min-height: 43px;
++  padding: 7px 9px;
++  border-bottom: 1px solid #e3e9e4;
++  font-size: 13px;
++}
++
++.exp-error-list small,
++.exp-error-list > div > span:nth-last-of-type(1) {
++  color: #6b776e;
++  text-align: right;
++}
++
++.exp-rank {
++  display: grid;
++  place-items: center;
++  width: 25px;
++  height: 25px;
++  border-radius: 4px;
++  background: #edf1ee;
++  color: #4f5d53;
++  font-weight: 800;
++}
++
++.exp-training-summary {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  margin: 0;
++  border-top: 1px solid #e1e7e2;
++}
++
++.exp-training-summary div {
++  display: grid;
++  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
++  gap: 15px;
++  padding: 13px 2px;
++  border-bottom: 1px solid #e1e7e2;
++}
++
++.exp-training-summary div:nth-child(odd) {
++  margin-right: 18px;
++}
++
++.exp-training-summary dt {
++  color: #68756c;
++  font-size: 12px;
++  font-weight: 700;
++}
++
++.exp-training-summary dd {
++  margin: 0;
++  font-size: 13px;
++  font-weight: 700;
++}
++
++.exp-compare-picker {
++  display: grid;
++  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
++  align-items: end;
++  gap: 18px;
++  padding: 18px;
++  border: 1px solid #d7dfd8;
++  border-radius: 8px;
++  background: #fff;
++}
++
++.exp-compare-picker > svg {
++  margin-bottom: 10px;
++  color: #2563eb;
++}
++
++.exp-compare-picker label {
++  color: #68756c;
++  font-size: 12px;
++  font-weight: 800;
++  text-transform: uppercase;
++}
++
++.exp-compare-picker select {
++  height: 43px;
++  margin-top: 7px;
++  padding: 0 11px;
++  font-size: 13px;
++  font-weight: 600;
++  text-transform: none;
++}
++
++.exp-compare-heads {
++  display: grid;
++  grid-template-columns: 1fr 1fr;
++  gap: 18px;
++  margin-bottom: 15px;
++  padding: 12px 14px;
++  border: 1px solid #dfe6e0;
++  border-radius: 6px;
++  background: #f7f9f7;
++}
++
++.exp-compare-heads > span:last-child {
++  text-align: right;
++}
++
++.exp-compare-heads strong,
++.exp-compare-heads small {
++  display: block;
++}
++
++.exp-compare-heads small {
++  margin-top: 4px;
++  color: #68756c;
++}
++
++.exp-compare-metrics,
++.exp-delta-list {
++  border-top: 1px solid #e0e6e1;
++}
++
++.exp-compare-metrics > div {
++  display: grid;
++  grid-template-columns: minmax(120px, 1fr) 110px 24px 110px 145px;
++  align-items: center;
++  gap: 12px;
++  min-height: 52px;
++  border-bottom: 1px solid #e0e6e1;
++  font-size: 13px;
++}
++
++.exp-compare-metrics > div > span:first-child {
++  color: #536158;
++  font-weight: 700;
++}
++
++.exp-compare-metrics > div > strong,
++.exp-compare-metrics > div > em {
++  text-align: right;
++}
++
++.exp-compare-metrics em,
++.exp-delta-list em {
++  display: inline-flex;
++  align-items: center;
++  justify-content: flex-end;
++  gap: 5px;
++  font-style: normal;
++  font-weight: 800;
++}
++
++.positive {
++  color: #0f766e;
++}
++
++.negative {
++  color: #b42323;
++}
++
++.exp-delta-list > div {
++  display: grid;
++  grid-template-columns: minmax(100px, 1fr) 80px 24px 80px 140px;
++  align-items: center;
++  gap: 10px;
++  min-height: 46px;
++  border-bottom: 1px solid #e0e6e1;
++  font-size: 13px;
++}
++
++.exp-delta-list > div > span,
++.exp-delta-list > div > em {
++  text-align: right;
++}
++
++@media (max-width: 1100px) {
++  .exp-context-bar {
++    grid-template-columns: repeat(3, minmax(0, 1fr));
++  }
++
++  .exp-context-title {
++    grid-column: 1 / 3;
++  }
++
++  .exp-status {
++    justify-content: center;
++  }
++
++  .exp-data-stats {
++    grid-template-columns: repeat(3, minmax(0, 1fr));
++  }
++
++  .exp-data-stats div + div {
++    border-left: 0;
++  }
++
++  .exp-data-stats div:not(:nth-child(3n + 1)) {
++    border-left: 1px solid #e0e6e1;
++  }
++
++  .exp-data-stats div:nth-child(n + 4) {
++    border-top: 1px solid #e0e6e1;
++  }
++
++  .exp-error-list {
++    grid-template-columns: 1fr;
++  }
++}
++
++@media (max-width: 760px) {
++  .experiment-dashboard {
++    width: 100%;
++  }
++
++  .exp-context-bar {
++    grid-template-columns: 1fr;
++    padding: 14px;
++  }
++
++  .exp-context-title {
++    grid-column: auto;
++  }
++
++  .exp-context-description {
++    align-items: flex-start;
++    flex-wrap: wrap;
++  }
++
++  .exp-tabs button {
++    flex: 1;
++    justify-content: center;
++    min-width: 0;
++    padding: 0 8px;
++    font-size: 13px;
++  }
++
++  .exp-kpi-grid {
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++  }
++
++  .exp-section {
++    padding: 15px;
++  }
++
++  .exp-section-heading {
++    align-items: stretch;
++    flex-direction: column;
++    gap: 12px;
++  }
++
++  .exp-data-stats {
++    grid-template-columns: repeat(2, minmax(0, 1fr));
++  }
++
++  .exp-data-stats div:not(:nth-child(3n + 1)) {
++    border-left: 0;
++  }
++
++  .exp-data-stats div:nth-child(n + 4) {
++    border-top: 0;
++  }
++
++  .exp-data-stats div:nth-child(even) {
++    border-left: 1px solid #e0e6e1;
++  }
++
++  .exp-data-stats div:nth-child(n + 3) {
++    border-top: 1px solid #e0e6e1;
++  }
++
++  .exp-bucket-row {
++    grid-template-columns: 90px minmax(80px, 1fr) 70px;
++  }
++
++  .exp-class-row {
++    grid-template-columns: 85px minmax(80px, 1fr) 55px;
++  }
++
++  .exp-bucket-row small,
++  .exp-class-row small {
++    display: none;
++  }
++
++  .exp-insights,
++  .exp-training-summary {
++    grid-template-columns: 1fr;
++  }
++
++  .exp-training-summary div:nth-child(odd) {
++    margin-right: 0;
++  }
++
++  .exp-compare-picker {
++    grid-template-columns: 1fr;
++  }
++
++  .exp-compare-picker > svg {
++    margin: 0 auto;
++    transform: rotate(90deg);
++  }
++
++  .exp-compare-metrics > div {
++    grid-template-columns: minmax(85px, 1fr) 76px 18px 76px;
++  }
++
++  .exp-compare-metrics em {
++    grid-column: 2 / 5;
++  }
++
++  .exp-source-list div {
++    grid-template-columns: 1fr;
++    gap: 3px;
++  }
++}
++
++@media (max-width: 480px) {
++  .exp-kpi-grid {
++    grid-template-columns: 1fr;
++  }
++
++  .exp-data-stats {
++    grid-template-columns: 1fr;
++  }
++
++  .exp-data-stats div:nth-child(even),
++  .exp-data-stats div:nth-child(n + 3) {
++    border-left: 0;
++  }
++
++  .exp-data-stats div + div {
++    border-top: 1px solid #e0e6e1;
++  }
++
++  .exp-error-list > div {
++    grid-template-columns: 26px minmax(60px, 1fr) 16px minmax(60px, 1fr) 65px;
++  }
++
++  .exp-error-list small {
++    display: none;
++  }
++
++  .exp-delta-list > div {
++    grid-template-columns: minmax(75px, 1fr) 62px 16px 62px;
++  }
++
++  .exp-delta-list em {
++    grid-column: 2 / 5;
++  }
++}
++
+ button,
+ input {
+   font: inherit;
+@@ -94,50 +1057,6 @@ input {
+ 
+ .modelGrid {
+   display: grid;
+-  grid-template-columns: 1fr;
+-  gap: 9px;
+-  margin-top: 12px;
+-}
+-
+-.pipelineGrid {
+-  display: grid;
+-  grid-template-columns: repeat(2, minmax(0, 1fr));
+-  gap: 9px;
+-  margin-top: 12px;
+-}
+-
+-.modelOption {
+-  display: flex;
+-  align-items: center;
+-  justify-content: space-between;
+-  gap: 10px;
+-  width: 100%;
+-  border: 1px solid #d8e1d9;
+-  background: #fbfcfb;
+-  border-radius: 8px;
+-  padding: 13px;
+-  color: #17211b;
+-  cursor: pointer;
+-}
+-
+-.pipelineOption {
+-  border: 1px solid #d8e1d9;
+-  background: #fbfcfb;
+-  border-radius: 8px;
+-  min-height: 40px;
+-  color: #17211b;
+-  cursor: pointer;
+-}
+-
+-.pipelineOption.active {
+-  border-color: #327457;
+-  background: #edf7f0;
+-  font-weight: 700;
+-}
+-
+-.modelOption.active {
+-  border-color: #327457;
+-  background: #edf7f0;
+ }
+ 
+ .modelOption span {
+@@ -842,4 +1761,49 @@ input {
+   padding-right: 8px;
+ }
+ 
++.selectorForm {
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++  margin-top: 12px;
++}
++
++.selectorField {
++  display: flex;
++  flex-direction: column;
++  gap: 5px;
++}
++
++.selectorField label {
++  color: #69766d;
++  font-size: 11px;
++  font-weight: 700;
++  text-transform: uppercase;
++  letter-spacing: 0.5px;
++}
++
++.modelSelect {
++  width: 100%;
++  height: 38px;
++  padding: 0 10px;
++  border: 1px solid #cbd5cd;
++  border-radius: 6px;
++  background: #fff;
++  color: #17211b;
++  font-size: 13.5px;
++  font-weight: 600;
++  cursor: pointer;
++  outline: none;
++  transition: border-color 0.15s, box-shadow 0.15s;
++}
++
++.modelSelect:focus {
++  border-color: #327457;
++  box-shadow: 0 0 0 3px rgba(50, 116, 87, 0.15);
++}
+ 
++.modelSelect:disabled {
++  background: #f4f7f2;
++  color: #9ca9a0;
++  cursor: not-allowed;
++}
+

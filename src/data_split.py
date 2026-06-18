@@ -15,7 +15,7 @@ Policy:
 
 Base Pipeline:
     - resize while preserving aspect ratio
-    - zero-pad to 224x224
+    - reflective-pad to 224x224 (cv2.BORDER_REFLECT_101)
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def discover_classes(raw_dir: Path) -> List[str]:
 
 
 def apply_pipeline_base(img: np.ndarray, image_size: int = IMAGE_SIZE) -> np.ndarray:
-    """Resize with preserved aspect ratio and zero-pad to image_size x image_size."""
+    """Resize with preserved aspect ratio and reflective-pad to image_size x image_size."""
     h, w = img.shape[:2]
     if h <= 0 or w <= 0:
         raise ValueError("Invalid image shape")
@@ -67,11 +67,13 @@ def apply_pipeline_base(img: np.ndarray, image_size: int = IMAGE_SIZE) -> np.nda
     new_h = max(1, int(round(h * scale)))
     resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
-    canvas = np.zeros((image_size, image_size, 3), dtype=np.uint8)
-    top = (image_size - new_h) // 2
-    left = (image_size - new_w) // 2
-    canvas[top:top + new_h, left:left + new_w] = resized
-    return canvas
+    pad_h = image_size - new_h
+    pad_w = image_size - new_w
+    top = pad_h // 2
+    bottom = pad_h - top
+    left = pad_w // 2
+    right = pad_w - left
+    return cv2.copyMakeBorder(resized, top, bottom, left, right, cv2.BORDER_REFLECT_101)
 
 
 def safe_output_name(src: Path, fallback_ext: str = ".jpg") -> str:

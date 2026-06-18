@@ -1,0 +1,536 @@
+Created At: 2026-06-14T09:21:32Z
+Completed At: 2026-06-14T09:21:32Z
+File Path: `file:///D:/Xu%20Ly%20Anh%20So/ProjectNhom/vehicle-type-recognition/frontend/src/components/Dashboard.jsx`
+Total Lines: 528
+Total Bytes: 26361
+Showing lines 1 to 528
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: import { useEffect, useMemo, useState } from "react";
+2: import {
+3:   AlertCircle,
+4:   ArrowRight,
+5:   BarChart3,
+6:   CheckCircle2,
+7:   Clock3,
+8:   Database,
+9:   GitCompareArrows,
+10:   Grid3X3,
+11:   Info,
+12:   LineChart,
+13:   Loader2,
+14:   RefreshCw,
+15:   ShieldCheck,
+16:   TableProperties,
+17:   TrendingDown,
+18:   TrendingUp,
+19: } from "lucide-react";
+20: 
+21: import {
+22:   fetchDatasetProfile,
+23:   fetchExperiment,
+24:   fetchExperimentCatalog,
+25:   fetchExperimentComparison,
+26: } from "../api/metricsApi";
+27: 
+28: const NUMBER = new Intl.NumberFormat("vi-VN");
+29: const BUCKET_LABELS = {
+30:   normal: "Normal",
+31:   rain: "Rain",
+32:   sun: "Sun",
+33:   night: "Night",
+34:   gaussian: "Gaussian blur",
+35:   motion: "Motion blur",
+36:   unsharp: "Unsharp mask",
+37:   gaussian_blur: "Gaussian blur",
+38:   motion_blur: "Motion blur",
+39:   unsharp_mask: "Unsharp mask",
+40: };
+41: const BUCKET_COLORS = ["#2563eb", "#0f766e", "#d97706", "#7c3aed"];
+42: 
+43: function formatNumber(value) {
+44:   return Number.isFinite(value) ? NUMBER.format(value) : "—";
+45: }
+46: 
+47: function formatPercent(value, digits = 2) {
+48:   return Number.isFinite(value) ? `${(value * 100).toFixed(digits)}%` : "—";
+49: }
+50: 
+51: function formatDelta(value) {
+52:   if (!Number.isFinite(value)) return "—";
+53:   const points = value * 100;
+54:   return `${points > 0 ? "+" : ""}${points.toFixed(2)} điểm %`;
+55: }
+56: 
+57: function formatDuration(seconds) {
+58:   if (!Number.isFinite(seconds)) return "Không được ghi nhận";
+59:   const hours = Math.floor(seconds / 3600);
+60:   const minutes = Math.round((seconds % 3600) / 60);
+61:   return hours ? `${hours} giờ ${minutes} phút` : `${minutes} phút`;
+62: }
+63: 
+64: function getItem(items, id) {
+65:   return items?.find((item) => item.id === id);
+66: }
+67: 
+68: function SectionHeading({ icon: Icon, title, description, action }) {
+69:   return (
+70:     <div className="exp-section-heading">
+71:       <div>
+72:         <h3><Icon size={18} />{title}</h3>
+73:         {description ? <p>{description}</p> : null}
+74:       </div>
+75:       {action}
+76:     </div>
+77:   );
+78: }
+79: 
+80: function LoadingState({ label = "Đang đọc dữ liệu..." }) {
+81:   return <div className="exp-loading"><Loader2 className="spin" size={20} />{label}</div>;
+82: }
+83: 
+84: function ErrorState({ message, onRetry }) {
+85:   return (
+86:     <div className="exp-message exp-message-error">
+87:       <AlertCircle size={20} />
+88:       <div><strong>Không thể hiển thị dữ liệu</strong><span>{message}</span></div>
+89:       {onRetry ? <button type="button" onClick={onRetry}><RefreshCw size={16} />Thử lại</button> : null}
+90:     </div>
+91:   );
+92: }
+93: 
+94: function DatasetOverview({ profile }) {
+95:   if (!profile) return null;
+96:   const buckets = Object.entries(profile.bucket_totals || {});
+97:   const maxBucket = Math.max(...buckets.map(([, value]) => value), 1);
+98: 
+99:   return (
+100:     <section className="exp-section">
+101:       <SectionHeading
+102:         icon={Database}
+103:         title="Dữ liệu đầu vào"
+104:         description="Các số lượng dưới đây được đọc trực tiếp từ báo cáo data preparation."
+105:       />
+106:       <div className="exp-data-stats">
+107:         <div><span>Ảnh raw</span><strong>{formatNumber(profile.raw_total)}</strong></div>
+108:         <div><span>Train nguồn</span><strong>{formatNumber(profile.split_totals?.train)}</strong></div>
+109:         <div><span>Train sau cân bằng</span><strong>{formatNumber(profile.train_total)}</strong></div>
+110:         <div><span>Validation unseen</span><strong>{formatNumber(profile.split_totals?.valid_unseen)}</strong></div>
+111:         <div><span>Test cố định</span><strong>{formatNumber(profile.split_totals?.test)}</strong></div>
+112:       </div>
+113: 
+114:       <div className="exp-bucket-list" aria-label="Phân bố augmentation">
+115:         {buckets.map(([name, value], index) => (
+116:           <div className="exp-bucket-row" key={name}>
+117:             <span>{BUCKET_LABELS[name] || name}</span>
+118:             <div className="exp-track"><i style={{ width: `${(value / maxBucket) * 100}%`, background: BUCKET_COLORS[index % BUCKET_COLORS.length] }} /></div>
+119:             <strong>{formatNumber(value)}</strong>
+120:             <small>{formatPercent(value / profile.train_total, 1)}</small>
+121:           </div>
+122:         ))}
+123:       </div>
+124: 
+125:       <details className="exp-details">
+126:         <summary>Chi tiết phân bố theo lớp</summary>
+127:         <div className="exp-table-scroll">
+128:           <table className="exp-table">
+129:             <thead><tr><th>Lớp</th><th>Raw</th><th>Train</th><th>Validation</th><th>Test</th></tr></thead>
+130:             <tbody>
+131:               {profile.class_distribution?.map((row) => (
+132:                 <tr key={row.class_name}>
+133:                   <th>{row.class_name}</th>
+134:                   <td>{formatNumber(row.raw)}</td>
+135:                   <td>{formatNumber(row.train)}</td>
+136:                   <td>{formatNumber(row.valid_unseen)}</td>
+137:                   <td>{formatNumber(row.test)}</td>
+138:                 </tr>
+139:               ))}
+140:             </tbody>
+141:           </table>
+142:         </div>
+143:       </details>
+144:     </section>
+145:   );
+146: }
+147: 
+148: function TrainingChart({ history }) {
+149:   const [metric, setMetric] = useState("loss");
+150:   const width = 820;
+151:   const height = 270;
+152:   const padding = { left: 52, right: 24, top: 22, bottom: 38 };
+153:   const series = metric === "loss"
+154:     ? [
+155:         { key: "train_loss", label: "Train loss", color: "#2563eb" },
+156:         { key: "valid_unseen_loss", label: "Validation loss", color: "#d97706" },
+157:       ]
+158:     : [{ key: "valid_unseen_acc", label: "Validation accuracy", color: "#0f766e" }];
+159:   const values = history.flatMap((row) => series.map((item) => row[item.key])).filter(Number.isFinite);
+160:   const dataMin = Math.min(...values);
+161:   const dataMax = Math.max(...values);
+162:   const spread = Math.max(dataMax - dataMin, 0.01);
+163:   const minY = metric === "accuracy" ? Math.max(0, dataMin - spread * 0.2) : Math.max(0, dataMin - spread * 0.15);
+164:   const maxY = Math.min(metric === "accuracy" ? 1 : Infinity, dataMax + spread * 0.15);
+165:   const chartWidth = width - padding.left - padding.right;
+166:   const chartHeight = height - padding.top - padding.bottom;
+167:   const x = (index) => padding.left + (index / Math.max(history.length - 1, 1)) * chartWidth;
+168:   const y = (value) => padding.top + (1 - (value - minY) / Math.max(maxY - minY, 0.001)) * chartHeight;
+169: 
+170:   return (
+171:     <section className="exp-section">
+172:       <SectionHeading
+173:         icon={LineChart}
+174:         title="Diễn biến huấn luyện"
+175:         description="Đường cong được dựng từ toàn bộ lịch sử epoch đã lưu."
+176:         action={(
+177:           <div className="exp-segmented">
+178:             <button type="button" className={metric === "loss" ? "active" : ""} onClick={() => setMetric("loss")}>Loss</button>
+179:             <button type="button" className={metric === "accuracy" ? "active" : ""} onClick={() => setMetric("accuracy")}>Accuracy</button>
+180:           </div>
+181:         )}
+182:       />
+183:       <div className="exp-chart-wrap">
+184:         <svg className="exp-line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Đường cong ${metric}`}>
+185:           {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+186:             const chartY = padding.top + chartHeight * fraction;
+187:             const value = maxY - (maxY - minY) * fraction;
+188:             return <g key={fraction}><line x1={padding.left} x2={width - padding.right} y1={chartY} y2={chartY} className="exp-grid-line" /><text x={padding.left - 9} y={chartY + 4} textAnchor="end">{metric === "accuracy" ? `${(value * 100).toFixed(1)}%` : value.toFixed(2)}</text></g>;
+189:           })}
+190:           {series.map((item) => {
+191:             const points = history.map((row, index) => `${x(index)},${y(row[item.key])}`).join(" ");
+192:             return <polyline key={item.key} points={points} fill="none" stroke={item.color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />;
+193:           })}
+194:           {history.map((row, index) => (
+195:             <text key={row.epoch} x={x(index)} y={height - 12} textAnchor="middle">{row.epoch}</text>
+196:           ))}
+197:         </svg>
+198:       </div>
+199:       <div className="exp-legend">
+200:         {series.map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.label}</span>)}
+201:         <span className="exp-axis-note">Epoch</span>
+202:       </div>
+203:     </section>
+204:   );
+205: }
+206: 
+207: function ClassPerformance({ rows }) {
+208:   const sorted = [...rows].sort((a, b) => b.f1 - a.f1);
+209:   return (
+210:     <section className="exp-section">
+211:       <SectionHeading icon={BarChart3} title="Hiệu quả theo lớp" description="F1-score giúp nhìn rõ lớp mạnh và lớp còn yếu, không bị che bởi lớp có nhiều ảnh." />
+212:       <div className="exp-class-bars">
+213:         {sorted.map((row) => (
+214:           <div className="exp-class-row" key={row.class_name}>
+215:             <span>{row.class_name}</span>
+216:             <div className="exp-track"><i style={{ width: `${row.f1 * 100}%` }} /></div>
+217:             <strong>{formatPercent(row.f1, 1)}</strong>
+218:             <small>{formatNumber(row.support)} ảnh</small>
+219:           </div>
+220:         ))}
+221:       </div>
+222:     </section>
+223:   );
+224: }
+225: 
+226: function ResultUnavailable({ datasetProfile }) {
+227:   return (
+228:     <>
+229:       <DatasetOverview profile={datasetProfile} />
+230:       <div className="exp-message exp-message-info">
+231:         <Info size={21} />
+232:         <div>
+233:           <strong>Chưa có kết quả huấn luyện cho tổ hợp này</strong>
+234:           <span>Dashboard chỉ hiển thị phần data preparation đã có thật. Khi output đánh giá được đăng ký, các chỉ số model sẽ tự xuất hiện.</span>
+235:         </div>
+236:       </div>
+237:     </>
+238:   );
+239: }
+240: 
+241: function OverviewView({ experiment, datasetProfile }) {
+242:   if (!experiment) return <ResultUnavailable datasetProfile={datasetProfile} />;
+243:   const { evaluation, training } = experiment;
+244:   return (
+245:     <div className="exp-view-stack">
+246:       <div className="exp-kpi-grid">
+247:         <div className="exp-kpi"><span>Test accuracy</span><strong>{formatPercent(evaluation.test.accuracy)}</strong><small>Trên {formatNumber(evaluation.test.samples)} ảnh</small></div>
+248:         <div className="exp-kpi"><span>Macro F1</span><strong>{formatPercent(evaluation.test.macro_f1)}</strong><small>Cân bằng giữa 10 lớp</small></div>
+249:         <div className="exp-kpi"><span>Epoch tốt nhất</span><strong>{formatNumber(training.best_epoch)}</strong><small>{formatNumber(training.completed_epochs)} epoch đã chạy</small></div>
+250:         <div className="exp-kpi"><span>Validation accuracy</span><strong>{formatPercent(evaluation.valid_unseen.accuracy)}</strong><small>{formatNumber(evaluation.valid_unseen.samples)} ảnh unseen</small></div>
+251:       </div>
+252:       <DatasetOverview profile={datasetProfile} />
+253:       <TrainingChart history={experiment.history} />
+254:       <ClassPerformance rows={evaluation.class_metrics} />
+255:       <section className="exp-section">
+256:         <SectionHeading icon={ShieldCheck} title="Nhận định từ kết quả" description="Nhận định được tính trực tiếp từ F1, validation gap và ma trận nhầm lẫn." />
+257:         <div className="exp-insights">
+258:           {experiment.insights.map((insight) => <div key={insight.kind}><CheckCircle2 size={18} /><span>{insight.message}</span></div>)}
+259:         </div>
+260:         <details className="exp-details">
+261:           <summary>Nguồn dữ liệu dùng cho màn hình này</summary>
+262:           <dl className="exp-source-list">
+263:             {Object.entries(experiment.sources).map(([name, path]) => <div key={name}><dt>{name}</dt><dd>{path}</dd></div>)}
+264:           </dl>
+265:         </details>
+266:       </section>
+267:     </div>
+268:   );
+269: }
+270: 
+271: function ConfusionMatrix({ evaluation }) {
+272:   const [mode, setMode] = useState("count");
+273:   const matrix = evaluation.confusion_matrix;
+274:   const maxCount = Math.max(...matrix.flat(), 1);
+275:   return (
+276:     <section className="exp-section">
+277:       <SectionHeading
+278:         icon={Grid3X3}
+279:         title="Ma trận nhầm lẫn"
+280:         description="Hàng là nhãn thật, cột là nhãn dự đoán."
+281:         action={(
+282:           <div className="exp-segmented">
+283:             <button type="button" className={mode === "count" ? "active" : ""} onClick={() => setMode("count")}>Số ảnh</button>
+284:             <button type="button" className={mode === "rate" ? "active" : ""} onClick={() => setMode("rate")}>Theo hàng</button>
+285:           </div>
+286:         )}
+287:       />
+288:       <div className="exp-table-scroll">
+289:         <table className="exp-matrix">
+290:           <thead><tr><th>Thật / đoán</th>{evaluation.class_names.map((name) => <th key={name}>{name}</th>)}</tr></thead>
+291:           <tbody>
+292:             {matrix.map((row, rowIndex) => {
+293:               const rowTotal = row.reduce((sum, value) => sum + value, 0);
+294:               return (
+295:                 <tr key={evaluation.class_names[rowIndex]}>
+296:                   <th>{evaluation.class_names[rowIndex]}</th>
+297:                   {row.map((count, colIndex) => {
+298:                     const rate = rowTotal ? count / rowTotal : 0;
+299:                     const intensity = mode === "count" ? count / maxCount : rate;
+300:                     const correct = rowIndex === colIndex;
+301:                     return <td key={`${rowIndex}-${colIndex}`} style={{ backgroundColor: correct ? `rgba(15, 118, 110, ${0.08 + intensity * 0.72})` : `rgba(220, 38, 38, ${intensity * 0.58})`, color: intensity > 0.5 ? "#fff" : undefined }}>{mode === "count" ? formatNumber(count) : formatPercent(rate, 1)}</td>;
+302:                   })}
+303:                 </tr>
+304:               );
+305:             })}
+306:           </tbody>
+307:         </table>
+308:       </div>
+309:     </section>
+310:   );
+311: }
+312: 
+313: function AnalysisView({ experiment }) {
+314:   const [sortKey, setSortKey] = useState("f1");
+315:   if (!experiment) return <div className="exp-message exp-message-info"><Info size={21} /><div><strong>Chưa có dữ liệu phân tích model</strong><span>Hãy chọn một tổ hợp đã huấn luyện.</span></div></div>;
+316:   const evaluation = experiment.evaluation;
+317:   const rows = [...evaluation.class_metrics].sort((a, b) => b[sortKey] - a[sortKey]);
+318:   return (
+319:     <div className="exp-view-stack">
+320:       <section className="exp-section">
+321:         <SectionHeading
+322:           icon={TableProperties}
+323:           title="Chỉ số từng lớp"
+324:           description="Precision, recall và F1 được lấy từ classification report đã kiểm chứng với test set."
+325:           action={(
+326:             <label className="exp-inline-select">Sắp xếp
+327:               <select value={sortKey} onChange={(event) => setSortKey(event.target.value)}>
+328:                 <option value="f1">F1-score</option><option value="precision">Precision</option><option value="recall">Recall</option><option value="support">Số mẫu</option>
+329:               </select>
+330:             </label>
+331:           )}
+332:         />
+333:         <div className="exp-table-scroll">
+334:           <table className="exp-table">
+335:             <thead><tr><th>Lớp</th><th>Precision</th><th>Recall</th><th>F1-score</th><th>Test support</th></tr></thead>
+336:             <tbody>{rows.map((row) => <tr key={row.class_name}><th>{row.class_name}</th><td>{formatPercent(row.precision)}</td><td>{formatPercent(row.recall)}</td><td><strong>{formatPercent(row.f1)}</strong></td><td>{formatNumber(row.support)}</td></tr>)}</tbody>
+337:           </table>
+338:         </div>
+339:       </section>
+340:       <ConfusionMatrix evaluation={evaluation} />
+341:       <section className="exp-section">
+342:         <SectionHeading icon={AlertCircle} title="Các cặp nhầm nhiều nhất" description="Tỷ lệ được tính trên tổng số ảnh của nhãn thật tương ứng." />
+343:         <div className="exp-error-list">
+344:           {evaluation.top_errors.map((error, index) => (
+345:             <div key={`${error.true_class}-${error.predicted_class}`}>
+346:               <span className="exp-rank">{index + 1}</span>
+347:               <strong>{error.true_class}</strong><ArrowRight size={16} /><strong>{error.predicted_class}</strong>
+348:               <span>{formatNumber(error.count)} ảnh</span><small>{formatPercent(error.rate, 1)} của lớp thật</small>
+349:             </div>
+350:           ))}
+351:         </div>
+352:       </section>
+353:       <section className="exp-section">
+354:         <SectionHeading icon={Clock3} title="Tóm tắt quá trình train" />
+355:         <dl className="exp-training-summary">
+356:           <div><dt>Tiêu chí chọn best</dt><dd>{experiment.training.selection_metric === "maximum_valid_unseen_accuracy" ? "Validation accuracy cao nhất" : "Validation loss thấp nhất"}</dd></div>
+357:           <div><dt>Epoch tốt nhất</dt><dd>{formatNumber(experiment.training.best_epoch)}</dd></div>
+358:           <div><dt>Validation loss thấp nhất</dt><dd>{experiment.training.minimum_valid_loss?.toFixed(6) ?? "—"} tại epoch {formatNumber(experiment.training.minimum_valid_loss_epoch)}</dd></div>
+359:           <div><dt>Validation accuracy cao nhất</dt><dd>{formatPercent(experiment.training.maximum_valid_accuracy)} tại epoch {formatNumber(experiment.training.maximum_valid_accuracy_epoch)}</dd></div>
+360:           <div><dt>Tổng thời gian được ghi nhận</dt><dd>{formatDuration(experiment.training.total_elapsed_s)}</dd></div>
+361:         </dl>
+362:       </section>
+363:     </div>
+364:   );
+365: }
+366: 
+367: function ExperimentLabel({ experiment }) {
+368:   return <span><strong>{experiment.model.label}</strong><small>{experiment.dataset.label} · {experiment.version.label}</small></span>;
+369: }
+370: 
+371: function CompareView({ catalog }) {
+372:   const available = useMemo(() => catalog.combinations.filter((item) => item.available), [catalog]);
+373:   const [firstId, setFirstId] = useState(available[0]?.id || "");
+374:   const [secondId, setSecondId] = useState(available[1]?.id || available[0]?.id || "");
+375:   const [comparison, setComparison] = useState(null);
+376:   const [loading, setLoading] = useState(false);
+377:   const [error, setError] = useState("");
+378:   const labelFor = (id) => {
+379:     const combination = available.find((item) => item.id === id);
+380:     if (!combination) return id;
+381:     return `${getItem(catalog.models, combination.model)?.label} · ${getItem(catalog.datasets, combination.dataset)?.label} · ${getItem(catalog.versions, combination.version)?.label}`;
+382:   };
+383: 
+384:   useEffect(() => {
+385:     let cancelled = false;
+386:     if (!firstId || !secondId || firstId === secondId) {
+387:       setComparison(null);
+388:       return undefined;
+389:     }
+390:     setLoading(true);
+391:     setError("");
+392:     fetchExperimentComparison(firstId, secondId)
+393:       .then((data) => { if (!cancelled) setComparison(data); })
+394:       .catch((requestError) => { if (!cancelled) setError(requestError.message); })
+395:       .finally(() => { if (!cancelled) setLoading(false); });
+396:     return () => { cancelled = true; };
+397:   }, [firstId, secondId]);
+398: 
+399:   return (
+400:     <div className="exp-view-stack">
+401:       <section className="exp-compare-picker">
+402:         <label>Thí nghiệm A<select value={firstId} onChange={(event) => setFirstId(event.target.value)}>{available.map((item) => <option key={item.id} value={item.id}>{labelFor(item.id)}</option>)}</select></label>
+403:         <GitCompareArrows size={22} />
+404:         <label>Thí nghiệm B<select value={secondId} onChange={(event) => setSecondId(event.target.value)}>{available.map((item) => <option key={item.id} value={item.id}>{labelFor(item.id)}</option>)}</select></label>
+405:       </section>
+406:       {firstId === secondId ? <div className="exp-message exp-message-info"><Info size={21} /><div><strong>Chọn hai thí nghiệm khác nhau</strong><span>Chỉ các run có output đánh giá thật mới xuất hiện trong danh sách.</span></div></div> : null}
+407:       {loading ? <LoadingState label="Đang đối chiếu hai kết quả..." /> : null}
+408:       {error ? <ErrorState message={error} /> : null}
+409:       {comparison && !loading ? (
+410:         <>
+411:           {comparison.warnings.map((warning) => <div className="exp-message exp-message-warning" key={warning}><AlertCircle size={21} /><div><strong>Lưu ý khi diễn giải</strong><span>{warning}</span></div></div>)}
+412:           <section className="exp-section">
+413:             <SectionHeading icon={GitCompareArrows} title="Chênh lệch tổng thể" description="Delta được tính B trừ A; số dương nghĩa là B cao hơn." />
+414:             <div className="exp-compare-heads"><ExperimentLabel experiment={comparison.first} /><ExperimentLabel experiment={comparison.second} /></div>
+415:             <div className="exp-compare-metrics">
+416:               {[
+417:                 ["Accuracy", "accuracy"], ["Macro F1", "macro_f1"], ["Weighted F1", "weighted_f1"],
+418:               ].map(([label, key]) => {
+419:                 const delta = comparison.deltas[key];
+420:                 return <div key={key}><span>{label}</span><strong>{formatPercent(comparison.first.evaluation.test[key])}</strong><ArrowRight size={16} /><strong>{formatPercent(comparison.second.evaluation.test[key])}</strong><em className={delta >= 0 ? "positive" : "negative"}>{delta >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}{formatDelta(delta)}</em></div>;
+421:               })}
+422:             </div>
+423:           </section>
+424:           <section className="exp-section">
+425:             <SectionHeading icon={BarChart3} title="Thay đổi F1 theo lớp" description="Sắp xếp theo độ lớn chênh lệch để thấy lớp nào thay đổi nhiều nhất." />
+426:             <div className="exp-delta-list">
+427:               {[...comparison.class_deltas].sort((a, b) => Math.abs(b.delta_f1) - Math.abs(a.delta_f1)).map((row) => (
+428:                 <div key={row.class_name}><strong>{row.class_name}</strong><span>{formatPercent(row.first_f1, 1)}</span><ArrowRight size={15} /><span>{formatPercent(row.second_f1, 1)}</span><em className={row.delta_f1 >= 0 ? "positive" : "negative"}>{formatDelta(row.delta_f1)}</em></div>
+429:               ))}
+430:             </div>
+431:           </section>
+432:         </>
+433:       ) : null}
+434:     </div>
+435:   );
+436: }
+437: 
+438: function Dashboard() {
+439:   const [catalog, setCatalog] = useState(null);
+440:   const [modelId, setModelId] = useState("");
+441:   const [datasetId, setDatasetId] = useState("");
+442:   const [versionId, setVersionId] = useState("");
+443:   const [activeView, setActiveView] = useState("overview");
+444:   const [experiment, setExperiment] = useState(null);
+445:   const [datasetProfile, setDatasetProfile] = useState(null);
+446:   const [loading, setLoading] = useState(true);
+447:   const [error, setError] = useState("");
+448:   const [reloadKey, setReloadKey] = useState(0);
+449: 
+450:   useEffect(() => {
+451:     let cancelled = false;
+452:     setLoading(true);
+453:     fetchExperimentCatalog()
+454:       .then((data) => {
+455:         if (cancelled) return;
+456:         setCatalog(data);
+457:         const firstReady = data.combinations.find((item) => item.available) || data.combinations[0];
+458:         setModelId(firstReady?.model || "");
+459:         setDatasetId(firstReady?.dataset || "");
+460:         setVersionId(firstReady?.version || "");
+461:       })
+462:       .catch((requestError) => { if (!cancelled) setError(requestError.message); })
+463:       .finally(() => { if (!cancelled) setLoading(false); });
+464:     return () => { cancelled = true; };
+465:   }, [reloadKey]);
+466: 
+467:   const selectedCombination = catalog?.combinations.find((item) => item.model === modelId && item.dataset === datasetId && item.version === versionId);
+468: 
+469:   useEffect(() => {
+470:     let cancelled = false;
+471:     if (!catalog || !datasetId || !versionId) return undefined;
+472:     setLoading(true);
+473:     setError("");
+474:     setExperiment(null);
+475:     Promise.all([
+476:       fetchDatasetProfile(datasetId, versionId),
+477:       selectedCombination?.available ? fetchExperiment(selectedCombination.id) : Promise.resolve(null),
+478:     ])
+479:       .then(([profile, result]) => {
+480:         if (cancelled) return;
+481:         setDatasetProfile(profile);
+482:         setExperiment(result);
+483:       })
+484:       .catch((requestError) => { if (!cancelled) setError(requestError.message); })
+485:       .finally(() => { if (!cancelled) setLoading(false); });
+486:     return () => { cancelled = true; };
+487:   }, [catalog, datasetId, versionId, selectedCombination?.id, selectedCombination?.available]);
+488: 
+489:   if (loading && !catalog) return <div className="experiment-dashboard"><LoadingState /></div>;
+490:   if (error && !catalog) return <div className="experiment-dashboard"><ErrorState message={error} onRetry={() => setReloadKey((value) => value + 1)} /></div>;
+491:   if (!catalog) return null;
+492: 
+493:   return (
+494:     <section className="experiment-dashboard">
+495:       <header className="exp-context-bar">
+496:         <div className="exp-context-title"><span>Ngữ cảnh thí nghiệm</span><strong>Model × Dataset × Version</strong></div>
+497:         <label>Model<select value={modelId} onChange={(event) => setModelId(event.target.value)}>{catalog.models.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
+498:         <label>Dataset<select value={datasetId} onChange={(event) => setDatasetId(event.target.value)}>{catalog.datasets.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
+499:         <label>Version<select value={versionId} onChange={(event) => setVersionId(event.target.value)}>{catalog.versions.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
+500:         <div className={`exp-status ${selectedCombination?.available ? "ready" : "missing"}`}>
+501:           {selectedCombination?.available ? <CheckCircle2 size={17} /> : <Info size={17} />}
+502:           <span>{selectedCombination?.available ? "Đã có kết quả" : "Chưa train"}</span>
+503:         </div>
+504:       </header>
+505: 
+506:       <div className="exp-context-description">
+507:         <Database size={16} /><span>{getItem(catalog.datasets, datasetId)?.description}</span>
+508:         <span className="exp-dot" />
+509:         <span>{getItem(catalog.versions, versionId)?.description}</span>
+510:       </div>
+511: 
+512:       <nav className="exp-tabs" aria-label="Các màn hình dashboard">
+513:         <button type="button" className={activeView === "overview" ? "active" : ""} onClick={() => setActiveView("overview")}><BarChart3 size={17} />Tổng quan</button>
+514:         <button type="button" className={activeView === "analysis" ? "active" : ""} onClick={() => setActiveView("analysis")}><Grid3X3 size={17} />Phân tích</button>
+515:         <button type="button" className={activeView === "compare" ? "active" : ""} onClick={() => setActiveView("compare")}><GitCompareArrows size={17} />So sánh</button>
+516:       </nav>
+517: 
+518:       {error ? <ErrorState message={error} /> : null}
+519:       {loading && catalog ? <LoadingState /> : null}
+520:       {!loading && !error && activeView === "overview" ? <OverviewView experiment={experiment} datasetProfile={datasetProfile} /> : null}
+521:       {!loading && !error && activeView === "analysis" ? <AnalysisView experiment={experiment} /> : null}
+522:       {!loading && activeView === "compare" ? <CompareView catalog={catalog} /> : null}
+523:     </section>
+524:   );
+525: }
+526: 
+527: export default Dashboard;
+528: 
+The above content shows the entire, complete file contents of the requested file.

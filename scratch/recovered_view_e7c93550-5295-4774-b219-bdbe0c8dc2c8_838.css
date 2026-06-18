@@ -1,0 +1,72 @@
+}
+
+.panelHeader h2,
+.resultHeader h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modelGrid {
+  display: grid;
+}
+
+.modelOption span {
+  color: #647269;
+  font-size: 13px;
+}
+
+.uploadBox {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin-top: 12px;
+  border: 1px dashed #aabaae;
+  border-radius: 8px;
+  background: #f9fbf8;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.uploadBox input {
+  display: none;
+}
+
+.uploadBox img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #0f1712;
+}
+
+.uploadBox span {
+  color: #5b6a60;
+}
+
+.uploadBox.disabled,
+.modelOption:disabled,
+.pipelineOption:disabled,
+.primaryButton:disabled,
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.fileMeta {
+  margin-top: 9px;
+  color: #627166;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.errorBox {
+  margin-top: 16px;
+  border: 1px solid #efb8ad;
+  background: #fff5f2;
+  color: #8a2f21;
+  border-radius: 8px;
+  padding: 11px 12px;
+}
+
+.actions {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

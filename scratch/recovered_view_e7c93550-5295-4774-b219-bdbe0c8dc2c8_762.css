@@ -1,0 +1,92 @@
+  grid-template-columns: 1fr;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.pipelineGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.modelOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid #d8e1d9;
+  background: #fbfcfb;
+  border-radius: 8px;
+  padding: 13px;
+  color: #17211b;
+  cursor: pointer;
+}
+
+.pipelineOption {
+  border: 1px solid #d8e1d9;
+  background: #fbfcfb;
+  border-radius: 8px;
+  min-height: 40px;
+  color: #17211b;
+  cursor: pointer;
+}
+
+.pipelineOption.active {
+  border-color: #327457;
+  background: #edf7f0;
+  font-weight: 700;
+}
+
+.modelOption.active {
+  border-color: #327457;
+  background: #edf7f0;
+}
+
+.modelOption span {
+  color: #647269;
+  font-size: 13px;
+}
+
+.uploadBox {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin-top: 12px;
+  border: 1px dashed #aabaae;
+  border-radius: 8px;
+  background: #f9fbf8;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.uploadBox input {
+  display: none;
+}
+
+.uploadBox img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #0f1712;
+}
+
+.uploadBox span {
+  color: #5b6a60;
+}
+
+.uploadBox.disabled,
+.modelOption:disabled,
+.pipelineOption:disabled,
+.primaryButton:disabled,
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.fileMeta {
+  margin-top: 9px;
+  color: #627166;
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

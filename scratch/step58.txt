@@ -1,0 +1,84 @@
+Chào bạn, tôi đã đọc qua file tài liệu báo cáo `.docx` duy nhất trong thư mục `docs` (`YOLO_TRAINING_REPORT_V1.docx`), cũng như đối chiếu toàn bộ cấu hình, luồng dữ liệu và số liệu thực tế được lưu tại các file kết quả huấn luyện của 3 mô hình (**ResNet-50**, **Vision Transformer - ViT** và **YOLOv8-cls**). 
+
+Dưới đây là báo cáo phân tích, so sánh chi tiết và xác định các tập nhầm lẫn gây ảnh hưởng lớn nhất đến độ chính xác (Accuracy).
+
+---
+
+### 1. KIỂM TRA LUỒNG DỮ LIỆU & CẤU HÌNH HIỆN TẠI
+* **Tập dữ liệu gốc (Vehicle-10):** Gồm **36,006 ảnh RGB** chia làm 10 lớp phương tiện.
+* **Chiến lược phân chia (Split Strategy):**
+  * `train` (85%, ~30,605 ảnh): Tập duy nhất được cân bằng và tăng cường dữ liệu.
+  * `valid_unseen` (5%, ~1,800 ảnh): Validation độc lập để theo dõi quá trình train.
+  * `test` (10%, ~3,601 ảnh): Đánh giá chính thức cuối cùng (đóng băng checkpoint).
+  * `valid_traincopy` (Copy từ train): Chỉ làm tham chiếu phụ trợ theo yêu cầu giáo trình (không đại diện cho khả năng tổng quát hóa).
+* **Quy trình Tiền xử lý (Base Pipeline):** 
+  * Áp dụng thống nhất cho Valid, Test và Deployment: Thay đổi kích thước giữ nguyên tỷ lệ khung hình (preserve aspect ratio) và đệm viền đen (zero-padding) đưa về kích thước vuông **224x224**.
+* **Tăng cường dữ liệu (Offline Augmentation - áp dụng riêng cho `train`):**
+  * Tỷ lệ môi trường: `normal` (70%), `rain` (10%), `sun` (10%), `night` (10%).
+  * Cân bằng lớp thiểu số (Bicycle, Helicopter, Minibus, Taxi, Train) bằng các phép biến đổi hình học (quay, lật, phối cảnh,...) trước khi áp dụng hiệu ứng thời tiết.
+
+---
+
+### 2. PHÂN TÍCH & SO SÁNH SỐ LIỆU BA MÔ HÌNH (Trên tập TEST chính thức)
+
+Dưới đây là bảng so sánh tổng quan hiệu năng của 3 mô hình trên tập kiểm thử **Test Split (3,601 ảnh)**:
+
+| Chỉ số | YOLOv8-cls (Lightweight) | ResNet-50 (Baseline CNN) | Vision Transformer (ViT-Base) |
+| :--- | :---: | :---: | :---: |
+| **Accuracy (Độ chính xác)** | 91.53% | 91.70% | **94.06%** |
+| **Loss** | **0.2618** | 0.7199 | 0.6557 |
+| **Macro F1-Score** | 89.18% | 89.86% | **92.31%** |
+| **Weighted F1-Score** | 91.45% | 91.70% | **94.05%** |
+
+> [!NOTE]
+> * **Vision Transformer (ViT)** đạt hiệu năng vượt trội nhất ở mọi chỉ số đo lường nhờ khả năng học ngữ cảnh toàn cục (global context) qua cơ chế Self-Attention.
+* **YOLOv8-cls** tuy có kích thước rất nhỏ gọn (phù hợp cho suy luận thời gian thực) nhưng vẫn bám sát Baseline **ResNet-50** về mặt Accuracy (~91.5% so với ~91.7%).
+
+---
+
+### 3. SO SÁNH F1-SCORE CHI TIẾT TỪNG LỚP TRÊN TẬP TEST
+
+| Lớp (Class) | Số mẫu (Support) | YOLOv8-cls F1 | ResNet-50 F1 | ViT F1 |
+| :--- | :---: | :---: | :---: | :---: |
+| **bicycle** | 162 | 92.7% | 92.1% | **93.8%** |
+| **boat** | 890 | 96.4% | 97.1% | **98.3%** |
+| **bus** | 406 | 93.1% | 93.0% | **95.5%** |
+| **car** | 854 | 89.7% | 89.4% | **92.2%** |
+| **helicopter** | 67 | 93.0% | 95.4% | **96.3%** |
+| **minibus** | 148 | 79.9% | **81.3%** | 80.6% |
+| **motorcycle** | 444 | 96.5% | 96.2% | **98.0%** |
+| **taxi** | 91 | 71.6% | 75.4% | **81.3%** |
+| **train** | 168 | 97.0% | 96.2% | **99.7%** |
+| **truck** | 371 | 82.0% | 82.6% | **87.6%** |
+
+---
+
+### 4. PHÂN TÍCH MA TRẬN NHẦM LẪN - CÁC TẬP LỖI GÂY GIẢM ACCURACY NHIỀU NHẤT
+
+Dựa trên ma trận nhầm lẫn của cả 3 mô hình, có **3 nhóm nhầm lẫn hệ thống nghiêm trọng nhất** trực tiếp kéo Accuracy tổng thể xuống:
+
+#### 1️⃣ Nhầm lẫn giữa Taxi $\rightarrow$ Car (Lỗi nặng nhất ở các lớp thiểu số)
+* **YOLOv8-cls:** Nhầm lẫn **33 / 91** ảnh taxi (chiếm 36.3%) thành ô tô con (Car). Recall của Taxi chỉ đạt vỏn vẹn **63.7%**.
+* **ResNet-50:** Nhầm lẫn **24 / 91** ảnh taxi thành Car. Recall đạt **72.5%**.
+* **ViT:** Nhầm lẫn **13 / 91** ảnh taxi thành Car. Recall tốt hơn nhưng vẫn bị mất điểm đáng kể (**83.5%**).
+* **Nguyên nhân:** Phom dáng xe Taxi và xe Car thông thường (như sedan, hatchback) hoàn toàn trùng khớp. Điểm khác biệt duy nhất là mào taxi trên nóc hoặc tem chữ dán bên cửa xe. Ở độ phân giải đầu vào thấp (224x224), các mô hình (đặc biệt là YOLOv8-cls) dễ dàng bỏ qua chi tiết mào xe nhỏ này.
+
+#### 2️⃣ Nhầm lẫn giữa Minibus $\rightarrow$ Car & Truck
+* **YOLOv8-cls:** Nhầm **12** minibus thành Car và **12** thành Truck. Recall đạt **79.1%**.
+* **ResNet-50:** Nhầm **19** minibus thành Car và **13** thành Truck. Recall đạt **76.4%**.
+* **ViT:** Nhầm **22** minibus thành Car và **7** thành Truck. Recall đạt **78.4%**.
+* **Nguyên nhân:** Minibus (các dòng xe khách 16 chỗ như Ford Transit, Hyundai Solati) có kích thước lấp lửng giữa ô tô con (Car) cỡ lớn và xe tải (Truck) dáng đứng, dẫn đến ranh giới quyết định của mô hình bị mờ nhạt.
+
+#### 3️⃣ Nhầm lẫn giữa Truck $\rightarrow$ Car, Bus & Minibus
+* **YOLOv8-cls:** Nhầm **37** truck thành Car, **15** thành Bus, **16** thành Minibus. Recall chỉ đạt **80.1%**.
+* **ResNet-50:** Nhầm **26** truck thành Car, **13** thành Bus, **7** thành Minibus. Recall đạt **85.4%**.
+* **ViT:** Nhầm **24** truck thành Car, **6** thành Bus, **12** thành Minibus. Recall đạt **87.6%**.
+* **Nguyên nhân:** Một số dòng xe bán tải lớn hoặc xe tải cabin nhỏ dễ bị nhầm với Car, trong khi xe tải thùng lớn dễ bị nhầm với Bus hoặc Minibus do các khối hình hộp chữ nhật tương đồng.
+
+---
+
+### 5. ĐỀ XUẤT CẢI THIỆN TẬP TRUNG
+Để giải quyết triệt để các tập nhầm lẫn trên nhằm gia tăng Accuracy cho chu kỳ huấn luyện tiếp theo:
+1. **Tăng kích thước ảnh đầu vào (`imgsz` từ 224 lên 320 hoặc 640):** Đặc biệt giúp nhận diện mào xe taxi (Taxi $\rightarrow$ Car) và cabin xe tải (Truck $\rightarrow$ Car).
+2. **Áp dụng Weighted Dataloader:** Tăng tần suất lấy mẫu của các lớp hay bị nhầm lẫn và có số lượng ít (như Taxi và Minibus) để mô hình tập trung tối ưu hóa ranh giới phân loại của các lớp này.
+3. **Cải tiến Augmentation (Cắt cabin & Random Erasing):** Giúp mô hình học được các đặc trưng cục bộ (như mào xe taxi, thùng xe tải) thay vì chỉ nhìn vào phom dáng tổng thể của xe.

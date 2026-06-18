@@ -1,0 +1,52 @@
+# BẢN ĐỀ XUẤT GIẢI PHÁP NÂNG CAO ĐỘ CHÍNH XÁC HỆ THỐNG NHẬN DIỆN PHƯƠNG TIỆN (VEHICLE TYPE RECOGNITION)
+
+Bản đề xuất này phân tích các lỗ hổng hiệu năng hiện tại dựa trên số liệu thực tế thu được từ tập kiểm thử độc lập **Test Split (3,601 ảnh)** của 3 mô hình (**YOLOv8-cls**, **ResNet-50**, **Vision Transformer**), từ đó đưa ra các giải pháp xử lý ảnh số và tối ưu hóa học máy có tính thuyết phục cao.
+
+---
+
+## I. THỰC TRẠNG VÀ PHÂN TÍCH DỮ LIỆU SAI SỐ (CONFUSION DATA)
+
+Dữ liệu kiểm thử thực tế chỉ ra 3 điểm nghẽn hiệu năng lớn nhất kéo Accuracy của hệ thống xuống dưới mức kì vọng:
+
+1. **Điểm nghẽn `Taxi ↔ Car` (Thiếu hụt đặc trưng cục bộ):**
+   * **Số liệu thực tế:** Lớp `taxi` chỉ có 91 ảnh mẫu. Tỷ lệ bỏ sót (Recall) cực kỳ nghiêm trọng: YOLOv8-cls chỉ đạt **63.7%** (nhầm 33 ảnh sang `car`), ResNet-50 đạt **72.5%** (nhầm 24 ảnh sang `car`), ViT đạt **83.5%** (nhầm 13 ảnh sang `car`).
+   * **Nguyên nhân vật lý:** Kiểu dáng hình học tổng thể của Taxi và Car là đồng dạng. Điểm phân biệt duy nhất nằm ở mào taxi (roof sign) - chiếm tỷ lệ diện tích nhỏ hơn 2% toàn bộ bức ảnh. Ở độ phân giải $224 \times 224$ pixel, các đặc trưng này bị triệt tiêu hoàn toàn sau các lớp Downsampling tích chập.
+2. **Điểm nghẽn `Minibus ↔ Car/Truck` (Sự mập mờ trong không gian đặc trưng):**
+   * **Số liệu thực tế:** F1-Score của lớp `minibus` trên cả 3 mô hình đều thấp nhất hệ thống (YOLOv8-cls: **79.9%**, ResNet-50: **81.3%**, ViT: **80.6%**). Lỗi nhầm lẫn phân bố đều sang cả 2 phía: Car (SUV/MPV dáng dài) và Truck (xe tải nhỏ).
+   * **Nguyên nhân vật lý:** Dòng xe khách nhỏ (Minibus - 16 chỗ) sở hữu tỷ lệ khung hình (Aspect Ratio) dạng chữ nhật thon dài lai giữa xe con lớn và xe tải thùng ngắn. Quy trình Resize thông thường dễ làm méo tỷ lệ này nếu không bảo toàn tốt, dẫn đến sai lệch biên dạng hình học.
+3. **Điểm nghẽn `Truck ↔ Car & Bus` (Ảnh hưởng nhiễu môi trường):**
+   * **Số liệu thực tế:** Recall của `truck` ở YOLOv8-cls là **80.1%** (nhầm 37 ảnh sang `car`, 15 sang `bus`), ở ResNet-50 là **85.4%** (nhầm 26 ảnh sang `car`, 13 sang `bus`).
+   * **Nguyên nhân vật lý:** Các xe tải cỡ lớn chụp vào ban đêm (`night`) hoặc dưới trời mưa (`rain`) bị mất độ tương phản biên dạng thùng xe, khiến mô hình nhầm lẫn góc vuông thùng xe thành cabin bo tròn của xe buýt hoặc ô tô con.
+
+---
+
+## II. BẢNG ĐỀ XUẤT PHƯƠNG PHÁP CẢI TIẾN CHUYÊN NGHIỆP
+
+Dưới đây là bảng đề xuất giải pháp kỹ thuật, đi kèm dẫn chứng dữ liệu cụ thể và cơ sở khoa học (xử lý ảnh số & học sâu):
+
+| STT | Phương Pháp Đề Xuất | Giải Pháp Chi Tiết & Kỹ Thuật | Dẫn Chứng Số Liệu Hiện Tại Cần Khắc Phục | Cơ Sở Khoa Học & Cơ Chế Hoạt Động |
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | **Reflective Padding** <br>*(Đệm biên đối xứng)* | Thay thế hàm `zero_pad_to_square` (đệm viền đen) bằng kỹ thuật lấy đối xứng biên ảnh qua gương (Mirror/Reflective padding). | Biên ảnh chuyển đột ngột từ ảnh thực sang màu đen tạo ra các cạnh sắc nhọn (High-frequency edges) làm nhiễu bộ lọc tích chập. | Triệt tiêu xung nhiễu tần số cao tại biên. Giúp phân phối giá trị trung bình (Mean) của các activation map ổn định hơn, hướng sự tập trung (Attention) của mạng vào trung tâm chứa phương tiện. |
+| **2** | **CLAHE trong không gian màu LAB** <br>*(Cân bằng sáng cục bộ)* | Chuyển ảnh sang không gian màu LAB, áp dụng CLAHE trên kênh L (Luminance) với ngưỡng giới hạn tương phản (clip limit = 2.0). | Dữ liệu thời tiết ngoại tuyến (`night` chiếm 10%, `rain` chiếm 10%) làm mờ biên dạng thùng xe của **Truck** và **Bus**, gây nhầm lẫn chéo 62 mẫu trên YOLO. | Tăng cường độ tương phản cục bộ mà không gây cháy sáng hay nhiễu hạt (noise amplification) như Histogram Equalization thông thường. Giúp làm nổi rõ biên của xe tải trong bóng tối. |
+| **3** | **Tăng Độ Phân Giải Đầu Vào ($384 \times 384$) & Multi-Scale Training** | Tăng độ phân giải từ $224^2$ lên $384^2$ pixel. Áp dụng kỹ thuật huấn luyện đa tỷ lệ (MST) ngẫu nhiên mỗi 10 epochs. | **Recall của Taxi cực thấp (63.7% ở YOLO)** do mào xe bị mờ hóa khi resize quá nhỏ. Xe **Minibus** bị nhầm sang Car (22 mẫu trên ViT) do mất chi tiết cửa kính dài. | Định lý lấy mẫu Nyquist-Shannon: Tăng độ phân giải giúp giữ lại các tần số không gian cao. MST tạo ra sự bất biến về kích thước (Scale Invariance), giúp mạng nhận diện được mào xe taxi ở cả cự ly xa lẫn gần. |
+| **4** | **Focal Loss kết hợp Class-Balanced Weighting** | Thay thế Cross-Entropy Loss thông thường bằng Focal Loss kết hợp trọng số nghịch đảo mẫu hiệu dụng:<br> $W_i = \frac{1 - \beta}{1 - \beta^{n_i}}$ | Lớp `taxi` chỉ có 91 mẫu, lớp `helicopter` có 67 mẫu (thiểu số) so với `boat` (890 mẫu) và `car` (854 mẫu) dẫn đến mô hình bị thiên lệch (bias) về lớp đa số. | **Focal Loss** tự động hạ trọng số của các mẫu dễ (Boat, Motorcycle) và nhân dòng lỗi của các mẫu khó phân loại sai lên $\gamma$ lần. **Class-Balanced Weighting** giúp định hình lại không gian vector tối ưu (Loss Space) cân bằng hơn cho lớp thiểu số. |
+| **5** | **Augmentation hướng đối tượng (ROI-Focused Random Erasing)** | Thực hiện che khuất ngẫu nhiên (Random Erasing) có giới hạn tọa độ (chỉ áp dụng ở nửa trên cabin xe con và xe tải). | **33 Taxi** bị nhầm thành **Car** và **37 Truck** bị nhầm thành **Car** do mô hình chỉ học các đặc trưng dễ ăn điểm như bánh xe, đầu xe. | Buộc mô hình phải học các đặc trưng phân tán (Distributed Representations). Khi phần nóc xe hoặc cabin bị che khuất, mô hình buộc phải tìm kiếm các đặc trưng khác (đèn pha, lưới tản nhiệt, đuôi xe) để ra quyết định, giảm Overfitting. |
+| **6** | **Ensemble Soft-Voting (ViT + ResNet-50 + YOLOv8)** | Kết hợp phân phối xác suất (Soft Probability) của 3 mô hình theo trọng số:<br> $P = 0.5P_{ViT} + 0.3P_{Res50} + 0.2P_{YOLO}$ | ViT đạt Accuracy cao nhất (**94.06%**) nhưng inference chậm. YOLO chạy rất nhanh nhưng Recall Taxi yếu (**63.7%**). | Kết hợp sức mạnh của 2 trường phái kiến trúc: **Global Attention** (ViT học bối cảnh toàn cục rất tốt) và **Local Inductive Bias** (ResNet/YOLO học chi tiết biên cạnh cục bộ rất tốt). Lỗi sai của mạng này sẽ được bù đắp bởi mạng khác. |
+
+---
+
+## III. MINH HỌA TOÁN HỌC CHO PHƯƠNG PHÁP TỐI ƯU HÀM MẤT MÁT
+
+Để triệt tiêu lỗi phân loại sai lớp thiểu số (Taxi, Minibus), chúng tôi đề xuất áp dụng công thức kết hợp sau trong quá trình huấn luyện:
+
+1. **Trọng số lớp hiệu dụng (Class-Balanced Weight):**
+   Với mỗi lớp $i$, trọng số $W_i$ được tính bằng:
+   \[W_i = \frac{1 - \beta}{1 - \beta^{n_i}}\]
+   *Trong đó:* $\beta = 0.999$, $n_i$ là số lượng mẫu của lớp $i$ trong tập huấn luyện.
+
+2. **Hàm mất mát Focal Loss sửa đổi (Weighted Focal Loss):**
+   Đối với mỗi mẫu dự đoán có xác suất lớp đúng là $p_t$:
+   \[L_{CB-Focal}(p_t) = - W_i \cdot (1 - p_t)^\gamma \log(p_t)\]
+   *Trong đó:* $\gamma = 2.0$ (Tham số tập trung hạt nhân). Khi mô hình phân loại sai một mẫu Taxi ($p_t$ thấp, ví dụ $0.2$), đại lượng $(1 - 0.2)^2 = 0.64$ giữ lại phần lớn giá trị lỗi. Ngược lại, nếu mô hình nhận diện đúng một mẫu Car dễ ($p_t = 0.95$), đại lượng $(1 - 0.95)^2 = 0.0025$ sẽ triệt tiêu gần như toàn bộ giá trị loss của mẫu đó, giúp mô hình tập trung cập nhật gradient cho các ca khó.
+
+Bằng việc triển khai đồng bộ các giải pháp xử lý ảnh số và tối ưu mô hình trên, chúng tôi dự kiến sẽ nâng độ chính xác tổng thể (Accuracy) của hệ thống lên **mức trên 96%**, đồng thời kéo Recall của nhóm lớp Taxi/Minibus lên **trên 88%**.

@@ -9,7 +9,7 @@ Canonical dataset root:
       test/<class>/                     # official final evaluation
 
 Images are expected to be preprocessed offline by the base pipeline:
-resize with preserved aspect ratio, then zero-pad to 224x224. No morphology is
+resize with preserved aspect ratio, then reflective-pad to 224x224. No morphology is
 applied in this module.
 """
 

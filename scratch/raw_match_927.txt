@@ -1,0 +1,1 @@
+I will modify the search script to search for `.exp-section` or `.experiment-dashboard` independently to find any partial or full views of the dashboard styling.

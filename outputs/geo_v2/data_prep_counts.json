@@ -15,73 +15,73 @@
   },
   "stats": {
     "bicycle": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "boat": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "bus": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "car": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "helicopter": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "minibus": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "motorcycle": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "taxi": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "train": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "truck": {
-      "normal": 5293,
-      "gaussian_blur": 756,
-      "motion_blur": 756,
-      "unsharp_mask": 757
+      "normal": 5173,
+      "gaussian_blur": 739,
+      "motion_blur": 739,
+      "unsharp_mask": 739
     },
     "__copied_valid_unseen": {
-      "total": 1800
+      "total": 1767
     },
     "__copied_valid_traincopy": {
-      "total": 1800
+      "total": 1767
     },
     "__copied_test": {
-      "total": 3601
+      "total": 3535
     }
   }
 }

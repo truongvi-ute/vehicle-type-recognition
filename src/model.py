@@ -142,6 +142,12 @@ class MultiLayerCLSViT(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         self.tokens.clear()
         _ = self.vit(x)
+        if len(self.tokens) != self.num_layers:
+            raise RuntimeError(
+                f"MultiLayerCLSViT: expected {self.num_layers} hook outputs, "
+                f"got {len(self.tokens)}. Hooks may have been lost after "
+                "checkpoint save/load. Rebuild the model with build_model()."
+            )
         fused = torch.cat(self.tokens, dim=1)  # [B, 2304]
         return self.fc(fused)
 

@@ -1,0 +1,151 @@
+:root {
+  color: #17211b;
+  background: #f4f7f2;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+select {
+  font: inherit;
+}
+
+/* Experiment dashboard */
+.experiment-dashboard {
+  max-width: 1280px;
+  margin: 0 auto;
+  color: #18221c;
+}
+
+.exp-context-bar {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.1fr) repeat(3, minmax(160px, 1fr)) auto;
+  align-items: end;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d7dfd8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(35, 52, 40, 0.06);
+}
+
+.exp-context-title {
+  align-self: center;
+}
+
+.exp-context-title span,
+.exp-context-bar label {
+  display: block;
+  color: #69766d;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.exp-context-title strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 17px;
+}
+
+.exp-context-bar select,
+.exp-compare-picker select,
+.exp-inline-select select {
+  width: 100%;
+  border: 1px solid #cbd5cd;
+  border-radius: 6px;
+  background: #fff;
+  color: #17211b;
+  cursor: pointer;
+  outline: none;
+}
+
+.exp-context-bar select {
+  height: 42px;
+  margin-top: 7px;
+  padding: 0 34px 0 11px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.exp-context-bar select:focus,
+.exp-compare-picker select:focus,
+.exp-inline-select select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.exp-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.exp-status.ready {
+  border-color: #9fd4bf;
+  background: #edf9f3;
+  color: #0d6949;
+}
+
+.exp-status.missing {
+  border-color: #f0cf91;
+  background: #fff8e8;
+  color: #8a5800;
+}
+
+.exp-context-description {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 9px 3px 0;
+  color: #627066;
+  font-size: 13px;
+}
+
+.exp-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #9ca9a0;
+}
+
+.exp-tabs {
+  display: flex;
+  gap: 2px;
+  margin: 18px 0 0;
+  border-bottom: 1px solid #ccd6ce;
+}
+
+.exp-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #66736a;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

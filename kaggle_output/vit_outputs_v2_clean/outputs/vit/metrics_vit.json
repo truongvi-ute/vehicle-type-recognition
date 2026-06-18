@@ -1,0 +1,12 @@
+{
+  "checkpoint_last": "/kaggle/working/VehicleTypeRecognition/models/vit/vit_last.pth",
+  "checkpoint_best": "/kaggle/working/VehicleTypeRecognition/models/vit/vit_base_patch16_224_best.pth",
+  "valid_unseen": {
+    "loss": 0.6576719686791703,
+    "accuracy": 0.9451046972269384
+  },
+  "test": {
+    "loss": 0.6464497193491836,
+    "accuracy": 0.947949080622348
+  }
+}

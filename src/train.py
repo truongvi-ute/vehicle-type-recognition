@@ -327,8 +327,10 @@ def train(
         pretrained=True,
         device=device,
     )
-    # Số lượng mẫu huấn luyện thực tế gốc của 10 lớp phương tiện
-    class_counts = [1334, 7390, 3395, 7111, 568, 1251, 3703, 765, 1403, 3125]
+    # So mau thu tu raw-cleaning/raw (alphabetical = thu tu ImageFolder):
+    # bicycle=1569, boat=8694, bus=3994, car=8366, helicopter=668,
+    # minibus=1472, motorcycle=4357, taxi=900, train=1650, truck=3677
+    class_counts = [1569, 8694, 3994, 8366, 668, 1472, 4357, 900, 1650, 3677]
     criterion = ClassBalancedFocalLoss(
         class_counts=class_counts,
         beta=0.999,
@@ -346,6 +348,7 @@ def train(
     history: List[Dict[str, float]] = []
     current_phase = ""
     optimizer: Optional[torch.optim.AdamW] = None
+    scheduler: Optional[torch.optim.lr_scheduler.ReduceLROnPlateau] = None
 
     for epoch in range(1, epochs + 1):
         epoch_start = time.perf_counter()
@@ -358,6 +361,15 @@ def train(
                 build_phase1_optimizer(model, lr_head)
                 if current_phase == "head_only"
                 else build_phase2_optimizer(model, lr_head, lr_backbone)
+            )
+            # Reset scheduler khi doi phase de tranh state cu anh huong
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode="min",
+                factor=0.5,
+                patience=3,
+                min_lr=1e-7,
+                verbose=False,
             )
             print(f"\nPhase changed to {current_phase}")
             model_summary(model)
@@ -389,6 +401,12 @@ def train(
             "elapsed_s": round(time.perf_counter() - epoch_start, 2),
         }
 
+        # Step scheduler dua tren valid_unseen_loss
+        if scheduler is not None:
+            scheduler.step(valid_unseen_loss)
+            current_lr = scheduler.get_last_lr()[0] if hasattr(scheduler, 'get_last_lr') else lr_head
+            row["lr"] = round(float(optimizer.param_groups[0]["lr"]), 8)
+
         if eval_traincopy_each_epoch and valid_traincopy_loader is not None:
             aux_loss, aux_acc = evaluate_loss_acc(
                 model=model,
@@ -401,11 +419,13 @@ def train(
             row["valid_traincopy_acc"] = round(aux_acc, 6)
 
         history.append(row)
+        lr_display = float(optimizer.param_groups[0]["lr"])
         print(
             f"Epoch [{epoch:>3}/{epochs}] [{current_phase}] "
             f"train_loss={train_loss:.4f} "
             f"valid_unseen_loss={valid_unseen_loss:.4f} "
-            f"valid_unseen_acc={valid_unseen_acc * 100:.2f}%"
+            f"valid_unseen_acc={valid_unseen_acc * 100:.2f}% "
+            f"lr={lr_display:.2e}"
         )
 
         checkpoint_metrics = {
