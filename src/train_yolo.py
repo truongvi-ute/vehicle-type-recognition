@@ -185,13 +185,22 @@ class ClassBalancedFocalLoss:
 
         logits = preds[1] if isinstance(preds, (list, tuple)) else preds
         targets = batch["cls"]
-        if targets.ndim > 1:
-            targets = targets.view(-1)
-        targets = targets.long()
+        
+        # Check if targets are 1D class indices or 2D soft labels (MixUp/CutMix)
+        if targets.ndim == 1 or (targets.ndim == 2 and targets.shape[-1] == 1):
+            if targets.ndim == 2:
+                targets = targets.view(-1)
+            targets = targets.long()
+            num_classes = logits.shape[-1]
+            one_hot = F.one_hot(targets, num_classes=num_classes).to(logits.dtype)
+            hard_targets = targets
+        else:
+            # Soft labels of shape (batch_size, num_classes)
+            one_hot = targets.to(logits.dtype)
+            hard_targets = targets.argmax(dim=-1)
 
-        num_classes = logits.shape[-1]
-        one_hot = F.one_hot(targets, num_classes=num_classes).to(logits.dtype)
         if self.label_smoothing > 0:
+            num_classes = logits.shape[-1]
             one_hot = (
                 one_hot * (1.0 - self.label_smoothing)
                 + self.label_smoothing / num_classes
@@ -202,11 +211,12 @@ class ClassBalancedFocalLoss:
         focal_factor = (1.0 - probs).pow(self.gamma)
         weights = self.weights.to(device=logits.device, dtype=logits.dtype)
         loss = -(one_hot * focal_factor * log_probs * weights).sum(dim=-1).mean()
+        
         if self.pair_lambda > 0 and self.pair_indices is not None:
             pair_terms = []
             for first_idx, second_idx in self.pair_indices:
-                first_mask = targets == first_idx
-                second_mask = targets == second_idx
+                first_mask = hard_targets == first_idx
+                second_mask = hard_targets == second_idx
 
                 if first_mask.any():
                     first_margin = logits[first_mask, first_idx] - logits[first_mask, second_idx]
@@ -218,8 +228,6 @@ class ClassBalancedFocalLoss:
             if pair_terms:
                 pair_loss = torch.cat(pair_terms).mean()
                 loss = loss + (self.pair_lambda * pair_loss)
-
-
 
         return loss, loss.detach()
 
