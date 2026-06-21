@@ -12,6 +12,7 @@ import {
   LineChart,
   Loader2,
   RefreshCw,
+  Settings,
   ShieldCheck,
   TableProperties,
   TrendingDown,
@@ -330,7 +331,7 @@ function ConfusionMatrix({ evaluation }) {
                     intensity = Math.min(Math.max(intensity, 0), 1);
                     
                     const bgColor = correct
-                      ? `rgba(15, 118, 110, ${count > 0 ? 0.08 + intensity * 0.72 : 0})`
+                      ? `rgba(37, 99, 235, ${count > 0 ? 0.08 + intensity * 0.72 : 0})`
                       : `rgba(220, 38, 38, ${count > 0 ? 0.05 + intensity * 0.65 : 0})`;
                       
                     const textColor = (intensity > 0.5 && count > 0) ? "#fff" : undefined;
@@ -479,6 +480,294 @@ function CompareView({ catalog }) {
   );
 }
 
+function ConfigView({ experiment }) {
+  if (!experiment) {
+    return (
+      <div className="exp-message exp-message-info">
+        <Info size={21} />
+        <div>
+          <strong>Chưa có thông tin thí nghiệm</strong>
+          <span>Hãy chọn một mô hình và tập dữ liệu đã huấn luyện để xem cấu hình.</span>
+        </div>
+      </div>
+    );
+  }
+
+  const hp = experiment.hyperparameters;
+
+  if (!hp) {
+    return (
+      <div className="exp-view-stack">
+        <section className="exp-section">
+          <SectionHeading
+            icon={Settings}
+            title="Cấu hình huấn luyện cơ bản (Legacy)"
+            description="Thông số huấn luyện tiêu chuẩn của phiên bản V1 / V2."
+          />
+          <div className="exp-message exp-message-info" style={{ marginTop: 0 }}>
+            <Info size={20} />
+            <div>
+              <strong>Thông báo hệ thống</strong>
+              <span>Các phiên bản V1 và V2 sử dụng cấu hình huấn luyện tiêu chuẩn mặc định, không lưu trữ file tham số chi tiết.</span>
+            </div>
+          </div>
+          <dl className="exp-training-summary" style={{ marginTop: 15 }}>
+            <div>
+              <dt>Trình tối ưu (Optimizer)</dt>
+              <dd>{experiment.model.id === "yolo" ? "SGD (mặc định)" : "Adam (mặc định)"}</dd>
+            </div>
+            <div>
+              <dt>Kích thước Batch</dt>
+              <dd>32</dd>
+            </div>
+            <div>
+              <dt>Hệ số học tập (Learning Rate)</dt>
+              <dd>{experiment.model.id === "yolo" ? "0.01" : "0.001"}</dd>
+            </div>
+            <div>
+              <dt>Kích thước ảnh đầu vào</dt>
+              <dd>224 × 224 px</dd>
+            </div>
+            <div>
+              <dt>Hàm mất mát (Loss Function)</dt>
+              <dd>CrossEntropyLoss</dd>
+            </div>
+            <div>
+              <dt>Chiến lược giảm LR</dt>
+              <dd>Cosine Annealing / StepLR</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+    );
+  }
+
+  const isYolo = experiment.model.id === "yolo";
+
+  // Standard params
+  const optimizer = hp.optimizer || "Chưa rõ";
+  const epochs = hp.max_epochs || hp.epochs || "Chưa rõ";
+  const batchSize = hp.batch_size || hp.batch || "Chưa rõ";
+  const patience = hp.patience || "Không cài đặt";
+  const seed = hp.seed !== undefined ? hp.seed : "Chưa rõ";
+  
+  // Learning rates
+  let lrDisplay = "";
+  if (hp.lr_head !== undefined || hp.lr_backbone !== undefined) {
+    lrDisplay = `Head: ${hp.lr_head || "—"} | Backbone: ${hp.lr_backbone || "—"}`;
+  } else if (hp.lr0 !== undefined) {
+    lrDisplay = `LR Khởi đầu: ${hp.lr0} ${hp.lrf ? `(lrf: ${hp.lrf})` : ""}`;
+  } else {
+    lrDisplay = "Mặc định";
+  }
+
+  // Advanced Loss: Class-Balanced Loss
+  const cbBeta = hp.cb_beta;
+  const cbGamma = hp.cb_gamma;
+  const isCbEnabled = cbBeta !== undefined || hp.loss === "ClassBalancedFocalLoss";
+
+  // PML
+  const pml = hp.pair_margin_loss;
+  const isPmlEnabled = pml && pml.enabled;
+
+  return (
+    <div className="exp-view-stack">
+      <div className="exp-kpi-grid">
+        <div className="exp-kpi">
+          <span>Trình tối ưu</span>
+          <strong>{optimizer}</strong>
+          <small>Phương thức tối ưu trọng số</small>
+        </div>
+        <div className="exp-kpi">
+          <span>Batch Size</span>
+          <strong>{batchSize}</strong>
+          <small>Số ảnh / batch huấn luyện</small>
+        </div>
+        <div className="exp-kpi">
+          <span>Epoch tối đa</span>
+          <strong>{epochs}</strong>
+          <small>Số epoch huấn luyện giới hạn</small>
+        </div>
+        <div className="exp-kpi">
+          <span>Random Seed</span>
+          <strong>{seed}</strong>
+          <small>Seed tạo số ngẫu nhiên</small>
+        </div>
+      </div>
+
+      <div className="exp-config-row-grid">
+        {/* Basic Configuration Section */}
+        <section className="exp-section">
+          <SectionHeading
+            icon={Settings}
+            title="Thông số huấn luyện cơ bản"
+            description="Các thông số điều phối và tối ưu hóa trong quá trình train."
+          />
+          <dl className="exp-training-summary">
+            <div>
+              <dt>Tốc độ học (Learning Rate)</dt>
+              <dd>{lrDisplay}</dd>
+            </div>
+            <div>
+              <dt>Dừng sớm (Patience)</dt>
+              <dd>{patience} epoch</dd>
+            </div>
+            <div>
+              <dt>Trọng số suy hao (Weight Decay)</dt>
+              <dd>{hp.weight_decay !== undefined ? hp.weight_decay : "Mặc định"}</dd>
+            </div>
+            <div>
+              <dt>Momentum</dt>
+              <dd>{hp.momentum !== undefined ? hp.momentum : "Mặc định"}</dd>
+            </div>
+            <div>
+              <dt>Dropout Rate</dt>
+              <dd>{hp.dropout !== undefined ? `${(hp.dropout * 100).toFixed(0)}%` : "0%"}</dd>
+            </div>
+            <div>
+              <dt>Kích thước ảnh</dt>
+              <dd>{hp.imgsz !== undefined ? `${hp.imgsz} × ${hp.imgsz} px` : "224 × 224 px"}</dd>
+            </div>
+            {isYolo && (
+              <>
+                <div>
+                  <dt>Tự động AMP</dt>
+                  <dd>{hp.amp ? "Bật" : "Tắt"}</dd>
+                </div>
+                <div>
+                  <dt>Deterministic</dt>
+                  <dd>{hp.deterministic ? "Bật" : "Tắt"}</dd>
+                </div>
+              </>
+            )}
+          </dl>
+        </section>
+
+        {/* Custom Loss / Balance Section */}
+        <section className="exp-section">
+          <SectionHeading
+            icon={ShieldCheck}
+            title="Cấu hình Loss & Cân bằng lớp"
+            description="Các thuật toán giải quyết bài toán mất cân bằng dữ liệu."
+          />
+          <dl className="exp-training-summary">
+            <div>
+              <dt>Class-Balanced Loss</dt>
+              <dd>{isCbEnabled ? "Kích hoạt" : "Không áp dụng"}</dd>
+            </div>
+            {isCbEnabled && (
+              <>
+                <div>
+                  <dt>CB Beta (Tần suất lớp)</dt>
+                  <dd>{cbBeta || "0.999"}</dd>
+                </div>
+                <div>
+                  <dt>Focal Loss Gamma</dt>
+                  <dd>{cbGamma || "2.0"}</dd>
+                </div>
+              </>
+            )}
+            <div>
+              <dt>Pairwise Margin Loss</dt>
+              <dd>{isPmlEnabled ? "Kích hoạt" : "Không áp dụng"}</dd>
+            </div>
+            {isPmlEnabled && (
+              <>
+                <div>
+                  <dt>Hệ số PML (Lambda)</dt>
+                  <dd>{pml.lambda}</dd>
+                </div>
+                <div>
+                  <dt>Biên độ PML (Margin)</dt>
+                  <dd>{pml.margin}</dd>
+                </div>
+                <div style={{ gridColumn: "span 2" }}>
+                  <dt>Cặp lớp áp dụng PML</dt>
+                  <dd style={{ marginTop: "4px" }}>
+                    {pml.classes && pml.classes.map((pair, idx) => (
+                      <span key={idx} style={{ 
+                        display: "inline-block", 
+                        padding: "2px 8px", 
+                        background: "#edf4fe", 
+                        color: "#2563eb", 
+                        borderRadius: "4px", 
+                        fontSize: "12px",
+                        marginRight: "6px",
+                        border: "1px solid #bfdbfe",
+                        fontWeight: "bold"
+                      }}>
+                        {pair.join(" ↔ ")}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              </>
+            )}
+            <div>
+              <dt>Label Smoothing</dt>
+              <dd>{hp.label_smoothing !== undefined ? hp.label_smoothing : (hp.cb_focal_label_smoothing !== undefined ? hp.cb_focal_label_smoothing : "0.0")}</dd>
+            </div>
+            <div>
+              <dt>Mixup Alpha</dt>
+              <dd>{hp.mixup_alpha !== undefined ? hp.mixup_alpha : (hp.mixup !== undefined ? hp.mixup : "Không áp dụng")}</dd>
+            </div>
+            {!isYolo && (
+              <div>
+                <dt>Cutmix Alpha</dt>
+                <dd>{hp.cutmix_alpha !== undefined ? hp.cutmix_alpha : "Không áp dụng"}</dd>
+              </div>
+            )}
+          </dl>
+        </section>
+      </div>
+
+      {/* Class Counts details for Class Balanced Loss */}
+      {hp.class_balanced_counts && (
+        <details className="exp-details">
+          <summary>Chi tiết số lượng mẫu tính Class-Balanced Weights</summary>
+          <div className="exp-table-scroll">
+            <table className="exp-table">
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left" }}>Lớp xe</th>
+                  <th>Số lượng ảnh làm trọng số (Effective Counts)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(hp.class_balanced_counts).map(([cls, count]) => (
+                  <tr key={cls}>
+                    <th style={{ fontWeight: "600", textAlign: "left" }}>{cls}</th>
+                    <td>{Number(count).toLocaleString("vi-VN")} ảnh</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+
+      {/* Full raw configurations dropdown */}
+      <details className="exp-details">
+        <summary>Xem toàn bộ file cấu hình JSON/YAML thô</summary>
+        <div style={{ 
+          marginTop: "12px", 
+          padding: "15px", 
+          background: "#1e293b", 
+          color: "#f8fafc", 
+          borderRadius: "6px", 
+          fontSize: "12px", 
+          fontFamily: "monospace",
+          whiteSpace: "pre-wrap",
+          maxHeight: "350px",
+          overflowY: "auto"
+        }}>
+          {JSON.stringify(hp, null, 2)}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function Dashboard() {
   const [catalog, setCatalog] = useState(null);
   const [modelId, setModelId] = useState("");
@@ -556,6 +845,7 @@ function Dashboard() {
       <nav className="exp-tabs" aria-label="Các màn hình dashboard">
         <button type="button" className={activeView === "overview" ? "active" : ""} onClick={() => setActiveView("overview")}><BarChart3 size={17} />Tổng quan</button>
         <button type="button" className={activeView === "analysis" ? "active" : ""} onClick={() => setActiveView("analysis")}><Grid3X3 size={17} />Phân tích</button>
+        <button type="button" className={activeView === "config" ? "active" : ""} onClick={() => setActiveView("config")}><Settings size={17} />Cấu hình Train</button>
         <button type="button" className={activeView === "compare" ? "active" : ""} onClick={() => setActiveView("compare")}><GitCompareArrows size={17} />So sánh</button>
       </nav>
 
@@ -563,6 +853,7 @@ function Dashboard() {
       {loading && catalog ? <LoadingState /> : null}
       {!loading && !error && activeView === "overview" ? <OverviewView experiment={experiment} datasetProfile={datasetProfile} /> : null}
       {!loading && !error && activeView === "analysis" ? <AnalysisView experiment={experiment} /> : null}
+      {!loading && !error && activeView === "config" ? <ConfigView experiment={experiment} /> : null}
       {!loading && activeView === "compare" ? <CompareView catalog={catalog} /> : null}
     </section>
   );

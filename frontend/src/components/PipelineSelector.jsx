@@ -11,8 +11,9 @@ const ICON_MAP = {
 };
 
 function PipelineSelector({ selectedPipeline, onChange, disabled, selectedModel }) {
-  // Determine if the selected model is V2 based on its filename convention (e.g. contains _v2_)
-  const isV2Model = selectedModel ? selectedModel.includes("_v2_") : false;
+  // Determine model versions based on its name convention
+  const isV1Model = selectedModel ? selectedModel.includes("_v1_") : false;
+  const isV2Model = selectedModel ? (selectedModel.includes("_v2_") || selectedModel.includes("_v3_")) : false;
 
   const groups = [
     {
@@ -86,7 +87,9 @@ function PipelineSelector({ selectedPipeline, onChange, disabled, selectedModel 
 
       <div className="pipelineGroupsContainer">
         {groups.map((group) => {
-          const isCompatible = group.version === "both" || (isV2Model ? group.version === "v2" : group.version === "v1");
+          const isCompatible = group.version === "both" || 
+            (group.version === "v1" && isV1Model) || 
+            (group.version === "v2" && isV2Model);
 
           return (
             <div key={group.title} className={`pipelineGroupSection ${!isCompatible ? "incompatibleGroup" : ""}`}>
@@ -109,7 +112,7 @@ function PipelineSelector({ selectedPipeline, onChange, disabled, selectedModel 
                       className={`pipelineOption ${selectedPipeline === item.value ? "active" : ""} ${!isCompatible ? "incompatibleOption" : ""}`}
                       type="button"
                       onClick={() => onChange(item.value)}
-                      disabled={disabled}
+                      disabled={disabled || !isCompatible}
                       role="radio"
                       aria-checked={selectedPipeline === item.value}
                       title={item.description}

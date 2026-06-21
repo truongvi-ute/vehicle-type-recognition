@@ -6,7 +6,7 @@ function formatConfidence(value) {
 
 function PredictionResult({ result, pipelinePreview, isLoading, isPreviewLoading }) {
   const predictions = result?.predictions || [];
-  const preview = result?.processed_image ? result : pipelinePreview;
+  const preview = pipelinePreview || result;
 
   return (
     <section className="resultPanel">

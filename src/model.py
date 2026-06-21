@@ -563,15 +563,44 @@ def load_for_inference(
 
     payload = torch.load(checkpoint_path, map_location=device)
     arch    = payload.get("arch", "")
+    state_dict = payload["state_dict"]
 
-    # Xây dựng lại mô hình theo kiến trúc đã lưu
-    model = build_model(
-        model_name  = arch,
-        num_classes = num_classes,
-        pretrained  = False,   # Không cần ImageNet weights — sẽ load từ ckpt
-        device      = device,
-    )
-    model.load_state_dict(payload["state_dict"])
+    # Xây dựng lại mô hình theo kiến trúc đã lưu, tự động phát hiện bản Legacy hay Cải tiến
+    if arch == "resnet50":
+        is_multiscale = "fc.0.weight" in state_dict
+        if is_multiscale:
+            original_resnet = models.resnet50(weights=None)
+            model = MultiScaleResNet50(original_resnet, num_classes=num_classes)
+        else:
+            original_resnet = models.resnet50(weights=None)
+            original_resnet.fc = nn.Linear(original_resnet.fc.in_features, num_classes)
+            original_resnet._arch = "resnet50"
+            original_resnet._head_name = "fc"
+            original_resnet._feature_dim = 2048
+            model = original_resnet
+        model = model.to(device)
+    elif arch == "vit_base_patch16_224":
+        is_multilayer = "fc.weight" in state_dict
+        if is_multilayer:
+            original_vit = models.vit_b_16(weights=None)
+            model = MultiLayerCLSViT(original_vit, num_classes=num_classes)
+        else:
+            original_vit = models.vit_b_16(weights=None)
+            original_vit.heads.head = nn.Linear(original_vit.heads.head.in_features, num_classes)
+            original_vit._arch = "vit_base_patch16_224"
+            original_vit._head_name = "heads.head"
+            original_vit._feature_dim = 768
+            model = original_vit
+        model = model.to(device)
+    else:
+        model = build_model(
+            model_name  = arch,
+            num_classes = num_classes,
+            pretrained  = False,   # Không cần ImageNet weights — sẽ load từ ckpt
+            device      = device,
+        )
+
+    model.load_state_dict(state_dict)
 
     # Khóa toàn bộ tham số (inference chỉ cần forward pass)
     for param in model.parameters():

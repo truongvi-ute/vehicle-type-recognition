@@ -428,6 +428,47 @@ def load_experiment(outputs_dir: Path, experiment_id: str) -> dict[str, Any]:
     )
     training = _training_summary(history, experiment["selection_metric"])
 
+    # Load optional hyperparameters
+    hyperparameters = None
+    if "metrics" in experiment:
+        metrics_file_path = _safe_output_path(outputs_dir, experiment["metrics"])
+        if metrics_file_path.is_file():
+            try:
+                metrics_data = json.loads(metrics_file_path.read_text(encoding="utf-8"))
+                hyperparameters = metrics_data.get("hyperparameters")
+            except Exception:
+                pass
+
+    if not hyperparameters:
+        try:
+            eval_path_obj = Path(experiment["evaluation"])
+            manifest_path = outputs_dir / eval_path_obj.parent / "experiment_manifest.json"
+            if manifest_path.is_file():
+                manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+                hyperparameters = manifest_data.get("hyperparameters")
+        except Exception:
+            pass
+                
+    if not hyperparameters and experiment.get("model") == "yolo":
+        eval_path_obj = Path(experiment["evaluation"])
+        args_path = outputs_dir / eval_path_obj.parent / "args.yaml"
+        if args_path.is_file():
+            try:
+                yolo_config = {}
+                with open(args_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or ":" not in line:
+                            continue
+                        k, v = line.split(":", 1)
+                        k, v = k.strip(), v.strip()
+                        if (v.startswith("'") and v.endswith("'")) or (v.startswith('"') and v.endswith('"')):
+                            v = v[1:-1]
+                        yolo_config[k] = v
+                hyperparameters = yolo_config
+            except Exception:
+                pass
+
     weakest = min(evaluation["class_metrics"], key=lambda row: row["f1"])
     largest_error = evaluation["top_errors"][0] if evaluation["top_errors"] else None
     generalization_gap = (
@@ -480,6 +521,7 @@ def load_experiment(outputs_dir: Path, experiment_id: str) -> dict[str, Any]:
         "history": history,
         "dataset_profile": dataset_profile,
         "insights": insights,
+        "hyperparameters": hyperparameters,
         "sources": {
             "evaluation": experiment["evaluation"],
             "history": experiment["history"],

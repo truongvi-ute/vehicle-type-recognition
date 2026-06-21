@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Loader2, RotateCcw, Send, Play, BarChart4 } from "lucide-react";
+import { Loader2, RotateCcw, Send, Play, BarChart4, Car } from "lucide-react";
 
 import { predictVehicle, previewPipeline } from "./api/predictApi";
 import ImageUploader from "./components/ImageUploader";
@@ -32,6 +32,11 @@ const MODEL_OPTIONS = [
     value: "resnet50_raw_cleaning_v2_best",
     description: "V2 Blur - Cleaned",
   },
+  {
+    label: "ResNet-50 (Raw Cleaning V3)",
+    value: "resnet50_raw_cleaning_v3_best",
+    description: "V3 - CB Focal + Pair Margin",
+  },
   // YOLO-cls
   {
     label: "YOLO-cls (Raw Original V1)",
@@ -52,6 +57,11 @@ const MODEL_OPTIONS = [
     label: "YOLO-cls (Raw Cleaning V2)",
     value: "yolo_raw_cleaning_v2_best",
     description: "V2 Blur - Cleaned",
+  },
+  {
+    label: "YOLO-cls (Raw Cleaning V3)",
+    value: "yolo_raw_cleaning_v3_best",
+    description: "V3 - CB Focal + Pair Margin",
   },
   // ViT
   {
@@ -127,6 +137,21 @@ function App() {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   useEffect(() => {
+    if (!selectedModel) return;
+    const isV1 = selectedModel.includes("_v1_");
+    const isV2orV3 = selectedModel.includes("_v2_") || selectedModel.includes("_v3_");
+
+    const v1Pipelines = ["rain", "sun", "night"];
+    const v2Pipelines = ["gaussian", "motion", "unsharp"];
+
+    if (isV1 && v2Pipelines.includes(selectedPipeline)) {
+      setSelectedPipeline("normal");
+    } else if (isV2orV3 && v1Pipelines.includes(selectedPipeline)) {
+      setSelectedPipeline("normal");
+    }
+  }, [selectedModel, selectedPipeline]);
+
+  useEffect(() => {
     if (!imageFile) {
       setPreviewUrl("");
       return undefined;
@@ -194,7 +219,7 @@ function App() {
       const data = await predictVehicle({
         imageFile,
         modelName: selectedModel,
-        pipeline: selectedPipeline,
+        pipeline: "normal",
       });
       setResult(data);
     } catch (requestError) {
@@ -221,9 +246,14 @@ function App() {
   return (
     <main className="appShell">
       <section className="topBar">
-        <div>
-          <h1>Vehicle Type Recognition</h1>
-          <p>Flask + React inference & comparison demo</p>
+        <div className="headerMainArea">
+          <div className="headerLogoWrap">
+            <Car size={26} className="headerLogoIcon" />
+          </div>
+          <div>
+            <h1 className="headerTitleText">Vehicle Type Recognition</h1>
+            <p className="headerSubTitleText">Flask + React inference & comparison demo</p>
+          </div>
         </div>
         
         <div className="tabNavigation">
@@ -245,7 +275,7 @@ function App() {
           </button>
         </div>
 
-        <div className="statusPill">API: /api/predict</div>
+
       </section>
 
       {activeTab === "inference" ? (

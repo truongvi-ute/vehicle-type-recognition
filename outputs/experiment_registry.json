@@ -36,6 +36,11 @@
       "id": "v2",
       "label": "V2 - Làm mờ và làm nét",
       "description": "70% Normal + 10% Gaussian + 10% Motion + 10% Unsharp"
+    },
+    {
+      "id": "v3",
+      "label": "V3 - CB Focal + Pair Margin",
+      "description": "70% Normal + 10% Gaussian + 10% Motion + 10% Unsharp (CB Focal & Pair Margin)"
     }
   ],
   "dataset_profiles": [
@@ -64,6 +69,13 @@
       "id": "raw_cleaning__v2",
       "dataset": "raw_cleaning",
       "version": "v2",
+      "base_dataprep": "data_cleaning_v1_counts.json",
+      "augmentation_dataprep": "data_cleaning_v2_counts.json"
+    },
+    {
+      "id": "raw_cleaning__v3",
+      "dataset": "raw_cleaning",
+      "version": "v3",
       "base_dataprep": "data_cleaning_v1_counts.json",
       "augmentation_dataprep": "data_cleaning_v2_counts.json"
     }
@@ -199,6 +211,28 @@
       "history": "vit_raw_original_v2/history_vit.json",
       "metrics": "vit_raw_original_v2/metrics_vit.json",
       "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "resnet50__raw_cleaning__v3",
+      "model": "resnet50",
+      "dataset": "raw_cleaning",
+      "version": "v3",
+      "evaluation": "resnet50_raw_cleaning_v3/evaluation_resnet50_best.json",
+      "history": "resnet50_raw_cleaning_v3/history_resnet50.json",
+      "metrics": "resnet50_raw_cleaning_v3/metrics_resnet50.json",
+      "selection_metric": "minimum_valid_unseen_loss",
+      "metadata_source": "verified_legacy_outputs"
+    },
+    {
+      "id": "yolo__raw_cleaning__v3",
+      "model": "yolo",
+      "dataset": "raw_cleaning",
+      "version": "v3",
+      "evaluation": "yolo_raw_cleaning_v3/evaluation_yolo_cls_best.json",
+      "history": "yolo_raw_cleaning_v3/history_yolo.json",
+      "metrics": "yolo_raw_cleaning_v3/metrics_yolo.json",
+      "selection_metric": "maximum_valid_unseen_accuracy",
       "metadata_source": "verified_legacy_outputs"
     }
   ]

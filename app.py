@@ -89,9 +89,9 @@ CLASS_COLORS: Dict[str, str] = {
 }
 
 MODEL_DISPLAY: Dict[str, str] = {
-    "resnet50": "ResNet-50  (~24.5M params)",
-    "vit":      "ViT-B/16   (~86M params)",
-    "yolo":     "YOLOv8-cls (~3.2M params)",
+    "resnet50": "ResNet-50",
+    "vit":      "ViT-B/16",
+    "yolo":     "YOLOv8-cls",
 }
 
 MODEL_FULL_NAME: Dict[str, str] = {
@@ -100,9 +100,47 @@ MODEL_FULL_NAME: Dict[str, str] = {
     "yolo":     "yolo_cls",
 }
 
+VERSION_OPTIONS: Dict[str, Dict[str, str]] = {
+    "resnet50": {
+        "raw_cleaning_v3": "V3 - CB Focal + Pair Margin (Clean)",
+        "raw_cleaning_v2": "V2 - Cleaned (Baseline)",
+        "raw_cleaning_v1": "V1 - Cleaned (Baseline)",
+        "raw_original_v2": "V2 - Original Dataset (Augmented)",
+        "raw_original_v1": "V1 - Original Dataset (Raw)",
+    },
+    "vit": {
+        "raw_cleaning_v2": "V2 - Cleaned (Baseline)",
+        "raw_cleaning_v1": "V1 - Cleaned (Baseline)",
+        "raw_original_v2": "V2 - Original Dataset (Augmented)",
+        "raw_original_v1": "V1 - Original Dataset (Raw)",
+    },
+    "yolo": {
+        "raw_cleaning_v3": "V3 - CB Focal + Pair Margin (Clean)",
+        "raw_cleaning_v2": "V2 - Cleaned (Baseline)",
+        "raw_cleaning_v1": "V1 - Cleaned (Baseline)",
+        "raw_original_v2": "V2 - Original Dataset (Augmented)",
+        "raw_original_v1": "V1 - Original Dataset (Raw)",
+    }
+}
+
 CHECKPOINT_DIR = _ROOT / "models"
 OUTPUT_DIR     = _ROOT / "outputs"
 NUM_CLASSES    = 10
+
+def get_version_paths(model_key: str, version_key: str) -> Tuple[Path, Path]:
+    """Trả về (checkpoint_path, output_dir) cho model và version cụ thể."""
+    suffix = ".pt" if model_key == "yolo" else ".pth"
+    model_name = MODEL_FULL_NAME[model_key]
+    
+    ckpt_dir = CHECKPOINT_DIR / f"{model_key}_{version_key}"
+    ckpt_path = ckpt_dir / f"{model_name}_best{suffix}"
+    
+    if not ckpt_path.exists():
+        short_name = "vit_best" if model_key == "vit" else f"{model_key}_best"
+        ckpt_path = ckpt_dir / f"{short_name}{suffix}"
+        
+    out_dir = OUTPUT_DIR / f"{model_key}_{version_key}"
+    return ckpt_path, out_dir
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
@@ -473,9 +511,9 @@ def predict(
 # HELPER — ĐỌC LỊCH SỬ TRAINING
 # ─────────────────────────────────────────────────────────────────────────────
 
-def load_history(model_key: str) -> Optional[List[Dict]]:
-    """Đọc file history_<model>.json từ thư mục outputs/<model_key>."""
-    path = OUTPUT_DIR / model_key / f"history_{model_key}.json"
+def load_history(model_key: str, out_dir: Path) -> Optional[List[Dict]]:
+    """Đọc file history_<model>.json từ thư mục output của phiên bản cụ thể."""
+    path = out_dir / f"history_{model_key}.json"
     if not path.exists():
         return None
     try:
@@ -489,9 +527,9 @@ def load_history(model_key: str) -> Optional[List[Dict]]:
 # COMPONENT — SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 
-def render_sidebar() -> Tuple[str, int]:
+def render_sidebar() -> Tuple[str, str, int]:
     """
-    Render sidebar và trả về (model_key, top_k).
+    Render sidebar và trả về (model_key, version_key, top_k).
     """
     with st.sidebar:
         # ── Logo / Title ──────────────────────────────────────────────────
@@ -505,7 +543,7 @@ def render_sidebar() -> Tuple[str, int]:
                 VehicleVision
             </div>
             <div style='font-size:0.75rem; color:#64748b; margin-top:0.2rem;'>
-                Deep Learning Demo v2.0
+                Deep Learning Demo v3.0
             </div>
         </div>
         <hr style='border-color:rgba(255,255,255,0.07); margin-bottom:1.2rem;'>
@@ -520,21 +558,37 @@ def render_sidebar() -> Tuple[str, int]:
             label_visibility = "collapsed",
         )
 
+        # ── Chọn phiên bản ────────────────────────────────────────────────
+        st.markdown("**⚙️ Phiên Bản / Thí Nghiệm**")
+        versions = VERSION_OPTIONS.get(model_key, {})
+        version_key = st.selectbox(
+            label     = "Version",
+            options   = list(versions.keys()),
+            format_func = lambda k: versions[k],
+            label_visibility = "collapsed",
+        )
+
         # Trạng thái checkpoint
-        suffix = ".pt" if model_key == "yolo" else ".pth"
-        ckpt_path = CHECKPOINT_DIR / model_key / f"{MODEL_FULL_NAME[model_key]}_best{suffix}"
+        ckpt_path, out_dir = get_version_paths(model_key, version_key)
         if ckpt_path.exists():
             size_mb = ckpt_path.stat().st_size / 1e6
+            arch_name = "YOLOv8m-cls" if (model_key == "yolo" and "v3" in version_key) else (
+                        "YOLOv8n-cls" if model_key == "yolo" else (
+                        "ViT-B/16" if model_key == "vit" else "ResNet-50"))
+            param_count = "15.8M" if (model_key == "yolo" and "v3" in version_key) else (
+                          "3.2M" if model_key == "yolo" else (
+                          "86M" if model_key == "vit" else "24.5M"))
             st.markdown(
                 f'<div class="info-box">✅ Checkpoint: <b>{ckpt_path.name}</b><br>'
-                f'Kích thước: {size_mb:.1f} MB</div>',
+                f'Kiến trúc: <b>{arch_name}</b> ({param_count})<br>'
+                f'Kích thước: <b>{size_mb:.1f} MB</b></div>',
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
                 f'<div class="warn-box">⚠️ Chưa có checkpoint<br>'
                 f'<code>{ckpt_path.name}</code><br>'
-                f'Hãy chạy <code>train.py</code> trước.</div>',
+                f'Hãy chạy train trước.</div>',
                 unsafe_allow_html=True,
             )
 
@@ -572,12 +626,12 @@ def render_sidebar() -> Tuple[str, int]:
         <div style='color:#475569; font-size:0.78rem; text-align:center; line-height:1.6;'>
             Đồ án Nhận dạng Phương tiện<br>
             <b>Vehicle-10 Dataset</b> — 10 lớp<br>
-            ResNet-50 &amp; ViT-B/16<br>
+            ResNet-50 &amp; ViT-B/16 &amp; YOLOv8<br>
             <span style='color:#6366f1;'>Deep Learning @ UTE</span>
         </div>
         """, unsafe_allow_html=True)
 
-    return model_key, top_k
+    return model_key, version_key, top_k
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -601,7 +655,7 @@ def render_hero() -> None:
 # COMPONENT — TAB PREDICT
 # ─────────────────────────────────────────────────────────────────────────────
 
-def render_predict_tab(model_key: str, top_k: int) -> None:
+def render_predict_tab(model_key: str, ckpt_path: Path, top_k: int) -> None:
     """Tab dự đoán chính: upload ảnh → inference → hiển thị kết quả."""
     import plotly.graph_objects as go
 
@@ -669,13 +723,11 @@ def render_predict_tab(model_key: str, top_k: int) -> None:
             return
 
         # Nạp mô hình
-        suffix = ".pt" if model_key == "yolo" else ".pth"
-        ckpt_path = CHECKPOINT_DIR / model_key / f"{MODEL_FULL_NAME[model_key]}_best{suffix}"
         if not ckpt_path.exists():
             st.markdown(
                 f'<div class="warn-box">⚠️ Không tìm thấy checkpoint:<br>'
                 f'<code>{ckpt_path}</code><br>'
-                f'Hãy huấn luyện mô hình trước bằng <code>python src/train.py</code>.</div>',
+                f'Hãy kiểm tra lại.</div>',
                 unsafe_allow_html=True,
             )
             return
@@ -710,6 +762,9 @@ def render_predict_tab(model_key: str, top_k: int) -> None:
         """, unsafe_allow_html=True)
 
         # ── Metric chips ──────────────────────────────────────────────────
+        arch_name = "YOLOv8m" if (model_key == "yolo" and "v3" in ckpt_path.parent.name) else (
+                    "YOLOv8n" if model_key == "yolo" else (
+                    "ViT-B" if model_key == "vit" else "ResNet50"))
         st.markdown(f"""
         <div class="metric-row" style="margin-top:1rem;">
             <div class="metric-chip">
@@ -721,7 +776,7 @@ def render_predict_tab(model_key: str, top_k: int) -> None:
                 <div class="label">Predictions</div>
             </div>
             <div class="metric-chip">
-                <div class="value">{MODEL_DISPLAY[model_key].split()[0]}</div>
+                <div class="value">{arch_name}</div>
                 <div class="label">Model</div>
             </div>
         </div>
@@ -771,7 +826,7 @@ def render_predict_tab(model_key: str, top_k: int) -> None:
 # COMPONENT — TAB TRAINING HISTORY
 # ─────────────────────────────────────────────────────────────────────────────
 
-def render_history_tab(model_key: str) -> None:
+def render_history_tab(model_key: str, out_dir: Path) -> None:
     """Tab lịch sử huấn luyện: đọc JSON và vẽ biểu đồ Loss / Accuracy."""
     import plotly.graph_objects as go
     from plotly.subplots import make_subplots
@@ -782,14 +837,14 @@ def render_history_tab(model_key: str) -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    history = load_history(model_key)
+    history = load_history(model_key, out_dir)
 
     if history is None:
-        history_path = OUTPUT_DIR / model_key / f"history_{model_key}.json"
+        history_path = out_dir / f"history_{model_key}.json"
         st.markdown(
             f'<div class="warn-box">⚠️ Chưa tìm thấy file lịch sử huấn luyện:<br>'
             f'<code>{history_path}</code><br>'
-            f'Hãy chạy <code>python src/train.py --model {model_key}</code> để tạo.</div>',
+            f'Hãy huấn luyện phiên bản này trước.</div>',
             unsafe_allow_html=True,
         )
         return
@@ -1089,6 +1144,215 @@ def render_dataset_tab() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# COMPONENT — TAB CONFIG INFO
+# ─────────────────────────────────────────────────────────────────────────────
+
+def render_config_tab(model_key: str, out_dir: Path) -> None:
+    """Tab cấu hình huấn luyện chi tiết."""
+    st.markdown("""
+    <div class="section-header">
+        <div class="section-dot"></div> Cấu Hình Huấn Luyện Chi Tiết (Training Hyperparameters)
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Load config dynamically
+    if model_key == "yolo":
+        # Load args.yaml
+        yaml_path = out_dir / "args.yaml"
+        if not yaml_path.exists():
+            st.warning(f"⚠️ Không tìm thấy tệp cấu hình YOLO: {yaml_path.name}")
+            return
+            
+        try:
+            # Simple YAML parser to avoid external dependencies
+            config = {}
+            with open(yaml_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or ":" not in line:
+                        continue
+                    k, v = line.split(":", 1)
+                    k, v = k.strip(), v.strip()
+                    if (v.startswith("'") and v.endswith("'")) or (v.startswith('"') and v.endswith('"')):
+                        v = v[1:-1]
+                    config[k] = v
+            
+            # Display YOLO configs
+            col1, col2 = st.columns(2, gap="medium")
+            with col1:
+                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+                st.markdown("##### ⚙️ Tham số tối ưu hóa cốt lõi")
+                
+                core_params = {
+                    "Model Architecture": config.get("model", "yolov8m-cls.pt"),
+                    "Optimizer": config.get("optimizer", "AdamW"),
+                    "Learning Rate ban đầu (lr0)": config.get("lr0", "0.0002"),
+                    "Học tỷ lệ giảm (lrf)": config.get("lrf", "0.01"),
+                    "Số Epoch tối đa": config.get("epochs", "30"),
+                    "Kích thước Batch": config.get("batch", "32"),
+                    "Kích thước ảnh đầu vào": f"{config.get('imgsz', '224')}x{config.get('imgsz', '224')}",
+                    "Patience (Dừng sớm)": config.get("patience", "12"),
+                }
+                
+                for label, val in core_params.items():
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.05);'>"
+                        f"<span style='color:#94a3b8;'>{label}</span>"
+                        f"<span style='color:#818cf8;font-weight:600;'>{val}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with col2:
+                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+                st.markdown("##### 🔧 Kỹ thuật Regularization & Augmentation")
+                
+                reg_params = {
+                    "Cosine Learning Rate Decay": "Bật (True)" if config.get("cos_lr") in ["true", "True", True] else "Tắt (False)",
+                    "Weight Decay (L2 Regularization)": config.get("weight_decay", "0.0005"),
+                    "Dropout Rate": config.get("dropout", "0.15"),
+                    "Mixup Alpha": config.get("mixup", "0.0"),
+                    "Warmup Epochs": config.get("warmup_epochs", "3.0"),
+                    "Mixed Precision (AMP)": "Bật (True)" if config.get("amp") in ["true", "True", True] else "Tắt (False)",
+                    "Device/GPU": f"CUDA Device {config.get('device', '0')}",
+                    "Workers (CPU threads)": config.get("workers", "2"),
+                }
+                
+                for label, val in reg_params.items():
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.05);'>"
+                        f"<span style='color:#94a3b8;'>{label}</span>"
+                        f"<span style='color:#818cf8;font-weight:600;'>{val}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            # Focal Loss + Pair Margin note
+            st.markdown(f"""
+            <div class="glass-card" style="margin-top:0.5rem;">
+                <div style="font-weight:700;color:#e2e8f0;margin-bottom:0.5rem;">
+                    💡 Chiến lược hàm Loss cải tiến của YOLOv8m-cls V3
+                </div>
+                <div style="color:#64748b;font-size:0.85rem;line-height:1.6;">
+                    - <b>Class-Balanced Focal Loss:</b> Hàm loss phân loại chéo thay thế cho CrossEntropy thông thường. Trọng số lớp được tính toán dựa trên số mẫu hiệu dụng (effective number of samples) với hệ số β = 0.999 và γ = 2.0 để giảm thiểu ảnh hưởng của mất cân bằng dữ liệu.<br>
+                    - <b>Pairwise Margin Loss:</b> Được tích hợp trực tiếp thông qua hook đạo hàm, áp dụng hình phạt biên (margin = 0.35, λ = 0.15) đối với các cặp dễ nhầm lẫn nhất (car ↔ truck, car ↔ taxi, minibus ↔ car, minibus ↔ truck, minibus ↔ bus).
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        except Exception as e:
+            st.error(f"Lỗi khi đọc file cấu hình YOLO: {e}")
+            
+    else: # resnet50 hoặc vit
+        json_path = out_dir / f"metrics_{model_key}.json"
+        if not json_path.exists():
+            st.warning(f"⚠️ Không tìm thấy file metrics chứa cấu hình: {json_path.name}")
+            return
+            
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                metrics_data = json.load(f)
+                
+            hyperparams = metrics_data.get("hyperparameters", None)
+            
+            if not hyperparams:
+                st.info(f"💡 Phiên bản hiện tại của {model_key.upper()} là phiên bản cũ, chưa ghi nhận siêu tham số huấn luyện động. Dưới đây là cấu hình train tiêu chuẩn:")
+                # Fallback to standard config of earlier versions
+                hyperparams = {
+                    "max_epochs": 30,
+                    "paws_patience": 5,
+                    "batch_size": 32,
+                    "optimizer": "AdamW",
+                    "lr_head": 0.001,
+                    "lr_backbone": 1e-05 if model_key == "vit" else 3e-05,
+                    "cb_beta": 0.999,
+                    "cb_gamma": 2.0,
+                    "label_smoothing": 0.1,
+                    "pair_margin_loss": {
+                        "enabled": False,
+                        "classes": [],
+                        "margin": 0.0,
+                        "lambda": 0.0
+                    }
+                }
+                
+            col1, col2 = st.columns(2, gap="medium")
+            
+            with col1:
+                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+                st.markdown("##### ⚙️ Siêu tham số Huấn luyện & Tối ưu")
+                
+                core_params = {
+                    "Kiến trúc Backbone": metrics_data.get("architecture", model_key),
+                    "Thuật toán Tối ưu": hyperparams.get("optimizer", "AdamW"),
+                    "Tốc độ học phân loại (LR Head)": hyperparams.get("lr_head", 0.001),
+                    "Tốc độ học đặc trưng (LR Backbone)": hyperparams.get("lr_backbone", 3e-05),
+                    "Số Epoch tối đa (Max Epochs)": hyperparams.get("max_epochs", 30),
+                    "Batch Size": hyperparams.get("batch_size", 32),
+                    "Patience (Dừng sớm)": hyperparams.get("patience", hyperparams.get("paws_patience", 7)),
+                    "Label Smoothing": hyperparams.get("label_smoothing", 0.1),
+                }
+                
+                for label, val in core_params.items():
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.05);'>"
+                        f"<span style='color:#94a3b8;'>{label}</span>"
+                        f"<span style='color:#818cf8;font-weight:600;'>{val}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with col2:
+                st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+                st.markdown("##### ⚖️ Hàm Loss Phân lớp & Biên Cặp (Loss Settings)")
+                
+                # Dynamic loss info
+                pm_config = hyperparams.get("pair_margin_loss", {})
+                pm_enabled = pm_config.get("enabled", False)
+                
+                loss_params = {
+                    "Hàm mất mát chính": "Class-Balanced Focal Loss",
+                    "Hệ số CB Beta (β)": hyperparams.get("cb_beta", 0.999),
+                    "Hệ số CB Gamma (γ)": hyperparams.get("cb_gamma", 2.0),
+                    "Tỷ lệ MixUp / CutMix": f"MixUp ({hyperparams.get('mixup_alpha', 0.2)}) / CutMix ({hyperparams.get('cutmix_alpha', 1.0)})",
+                    "Pairwise Margin Loss": "Kích hoạt (Enabled)" if pm_enabled else "Không kích hoạt (Disabled)",
+                }
+                
+                if pm_enabled:
+                    loss_params["Biên phạt (Margin m)"] = pm_config.get("margin", 0.4)
+                    loss_params["Trọng số phạt (Lambda λ)"] = pm_config.get("lambda", 0.15)
+                    # format pairs
+                    pairs = pm_config.get("classes", [])
+                    pairs_str = ", ".join([f"{p[0]}↔{p[1]}" for p in pairs])
+                    loss_params["Các cặp lớp áp dụng"] = pairs_str
+                
+                for label, val in loss_params.items():
+                    st.markdown(
+                        f"<div style='display:flex;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.05);'>"
+                        f"<span style='color:#94a3b8;'>{label}</span>"
+                        f"<span style='color:#818cf8;font-weight:600;'>{val}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            # Add early/multi phase fine-tuning diagram/info
+            st.markdown(f"""
+            <div class="glass-card" style="margin-top:0.5rem;">
+                <div style="font-weight:700;color:#e2e8f0;margin-bottom:0.5rem;">
+                    💡 Chiến lược huấn luyện 2 Phase của {model_key.upper()}
+                </div>
+                <div style="color:#64748b;font-size:0.85rem;line-height:1.6;">
+                    - <b>Phase 1 (Epoch 1-5):</b> Đóng băng toàn bộ các tầng CNN/Transformer của Backbone, chỉ huấn luyện bộ phân loại mới (Head) với tốc độ học cao (LR = {hyperparams.get('lr_head', 0.001)}).<br>
+                    - <b>Phase 2 (Epoch 6-30):</b> Rã băng các tầng sâu cuối cùng của Backbone (Layer 4 đối với ResNet-50 / 4 Encoder blocks cuối đối với ViT) và cùng tối ưu hóa với bộ phân loại Head bằng tốc độ học nhỏ hơn (LR = {hyperparams.get('lr_backbone', '3e-5')}) để tránh phá hủy đặc trưng chung của ImageNet.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        except Exception as e:
+            st.error(f"Lỗi khi đọc file cấu hình {model_key.upper()}: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # COMPONENT — TAB MODEL INFO
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1215,24 +1479,29 @@ def render_model_tab(model_key: str) -> None:
 
 def main() -> None:
     # ── Sidebar ────────────────────────────────────────────────────────────
-    model_key, top_k = render_sidebar()
+    model_key, version_key, top_k = render_sidebar()
+    ckpt_path, out_dir = get_version_paths(model_key, version_key)
 
     # ── Hero ───────────────────────────────────────────────────────────────
     render_hero()
 
     # ── Tabs ───────────────────────────────────────────────────────────────
-    tab_predict, tab_history, tab_dataset, tab_model = st.tabs([
+    tab_predict, tab_history, tab_config, tab_dataset, tab_model = st.tabs([
         "🔍  Nhận Dạng",
         "📈  Lịch Sử Training",
+        "⚙️  Cấu Hình Train",
         "📊  Dataset",
         "🏗️  Mô Hình",
     ])
 
     with tab_predict:
-        render_predict_tab(model_key, top_k)
+        render_predict_tab(model_key, ckpt_path, top_k)
 
     with tab_history:
-        render_history_tab(model_key)
+        render_history_tab(model_key, out_dir)
+
+    with tab_config:
+        render_config_tab(model_key, out_dir)
 
     with tab_dataset:
         render_dataset_tab()

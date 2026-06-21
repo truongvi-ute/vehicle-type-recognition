@@ -1,0 +1,91 @@
+{
+  "created_utc": "2026-06-21T04:30:01.441278+00:00",
+  "dataset_id": "raw_cleaning",
+  "dataset_variant": "v2",
+  "experiment_name": "yolo_v8m_cb_focal_pair_margin_config_1",
+  "data_dir": "/kaggle/input/datasets/onguynthith/dataset-augmenttedv3-vehicle/augmented_v2",
+  "run_dir": "/kaggle/working/VehicleTypeRecognition/outputs/yolo_runs/yolo_v8m_cb_focal_pair_margin_config_1",
+  "model": "yolov8m-cls.pt",
+  "training_strategy": "transfer_learning_from_imagenet_pretrained_yolov8m-cls_with_cb_focal_anti_overfit_config",
+  "split_policy": {
+    "train": "weight updates",
+    "valid_unseen": "early stopping and best checkpoint selection",
+    "test": "reserved for post-training evaluation",
+    "valid_traincopy": "auxiliary only; excluded from selection"
+  },
+  "input_pipeline": {
+    "local_preprocessing": "aspect-ratio resize and reflective-pad to 224x224",
+    "training_transform": "full-image resize to 224x224 and ToTensor",
+    "random_resized_crop": false,
+    "online_auto_augment": false,
+    "online_random_erasing": false,
+    "online_flip": false,
+    "online_mixup": 0.15
+  },
+  "hyperparameters": {
+    "max_epochs": 30,
+    "patience": 12,
+    "batch": 32,
+    "imgsz": 224,
+    "optimizer": "AdamW",
+    "lr0": 0.0002,
+    "warmup_epochs": 3.0,
+    "weight_decay": 0.0005,
+    "dropout": 0.15,
+    "cos_lr": true,
+    "ultralytics_label_smoothing": 0.0,
+    "cb_focal_label_smoothing": 0.05,
+    "mixup": 0.15,
+    "loss": "ClassBalancedFocalLoss",
+    "cb_beta": 0.999,
+    "cb_gamma": 2.0,
+    "pair_margin_loss": {
+      "enabled": true,
+      "classes": [
+        [
+          "car",
+          "truck"
+        ]
+      ],
+      "margin": 0.35,
+      "lambda": 0.1
+    },
+    "class_balanced_counts": {
+      "bicycle": 1334,
+      "boat": 7390,
+      "bus": 3395,
+      "car": 7111,
+      "helicopter": 568,
+      "minibus": 1251,
+      "motorcycle": 3703,
+      "taxi": 765,
+      "train": 1403,
+      "truck": 3125
+    },
+    "amp": true,
+    "workers": 2,
+    "seed": 42,
+    "deterministic": true,
+    "device": "0"
+  },
+  "software": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cu128",
+    "ultralytics": "8.4.66",
+    "cuda_available": true,
+    "cuda_version": "12.8",
+    "gpu": "Tesla T4"
+  },
+  "training_summary": {
+    "completed_epochs": 17,
+    "checkpoint_selection_metric": "minimum_valid_unseen_loss",
+    "best_checkpoint_epoch": 8,
+    "best_valid_unseen_accuracy": 0.93039,
+    "valid_loss_at_best_checkpoint": 0.27952,
+    "minimum_valid_unseen_loss_epoch": 8,
+    "minimum_valid_unseen_loss": 0.27952,
+    "maximum_valid_unseen_accuracy_epoch": 17,
+    "maximum_valid_unseen_accuracy": 0.93548,
+    "valid_loss_at_maximum_accuracy": 0.29922
+  }
+}
