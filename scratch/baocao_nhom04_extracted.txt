@@ -1,0 +1,726 @@
+TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM
+KHOA CÔNG NGHỆ THÔNG TIN
+ỨNG DỤNG NHẬN DIỆN PHƯƠNG TIỆN GIAO THÔNG
+BÁO CÁO CUỐI KỲ
+MÔN HỌC: XỬ LÝ ẢNH SỐ
+Mã lớp học phần: 252DIPR430685_07CLC
+Học kỳ: II
+Năm học: 2025 – 2026
+GVHD: ThS. Võ Lê Phúc Hậu
+Danh sách viên thực hiện: Nhóm 04
+MSSV
+Họ tên
+23110173
+Nguyễn Đoàn Trường Vĩ 
+23110139
+Nguyễn Hoàng Phúc 
+23110073
+Đào Nguyễn Nhật Anh 
+TP. Hồ Chí Minh, tháng 06 năm 2026
+NHẬN XÉT VÀ ĐÁNH GIÁ CỦA GIẢNG VIÊN
+LỜI CẢM ƠN
+Lời đầu tiên, nhóm chúng em xin gửi lời cảm ơn chân thành nhất đến cô Võ Lê Phúc Hậu. Trong quá trình học tập và tìm hiểu bộ môn Xử lý ảnh số, chúng em đã nhận được sự quan tâm giúp đỡ, hướng dẫn rất tận tình và tâm huyết của cô. Cô đã giúp em có cơ hội tích lũy thêm nhiều kiến thức mới và hoàn thiện các kỹ năng cần thiết để phát triển và quản lý phần mềm một cách hiệu quả. Nhờ vào sự chỉ dẫn và giúp đỡ của cô, chúng em đã có thể hoàn thành đồ án một cách hiệu quả và đạt được kết quả như mong đợi.
+Có lẽ kiến thức là vô hạn và sự tiếp nhận của bản thân mỗi người luôn tồn tại những hạn chế nhất định. Do đó, trong đó quá trình hoàn thành đồ án môn học chắc chắn không tránh khỏi những thiếu sót. Chúng em rất mong nhận được những góp ý đến từ cô để đồ án được hoàn thiện hơn.
+Một lần nữa, chúng em xin gửi đến cô Võ Lê Phúc Hậu lời cảm ơn chân thành vì sự giúp đỡ và hướng dẫn của thầy trong quá trình học tập của nhóm.
+Trân trọng.
+Mục lục
+1Tổng quan đề tài1
+1.1Bài toán, mục tiêu và ý nghĩa1
+1.2Phạm vi, dữ liệu đầu vào và kết quả đầu ra1
+1.3Tổng quan quy trình hệ thống2
+2Bộ dữ liệu và chiến lược chuẩn bị dữ liệu4
+2.1Nguồn dữ liệu4
+2.2Mất cân bằng dữ liệu4
+2.3Chuẩn bị và chia tập dữ liệu5
+3Tiền xử lý và tăng cường dữ liệu8
+3.1Quy trình tiền xử lý8
+3.2Chiến lược cân bằng và mở rộng dữ liệu8
+3.3Các phép biến đổi ảnh10
+3.4Phương pháp tăng cường dữ liệu V110
+3.5Phương pháp tăng cường dữ liệu V211
+3.6Tăng cường dữ liệu trực tuyến trong quá trình huấn luyện13
+3.7Thiết kế các bộ dữ liệu thực nghiệm14
+3.8Phân phối dữ liệu sau cân bằng và tăng cường15
+4Mô hình và quá trình huấn luyện15
+4.1ResNet5016
+4.1.1Tổng quan mô hình16
+4.1.2Sơ đồ luồng xử lý của mô hình17
+4.1.3Cấu hình huấn luyện17
+4.2YOLO Classification18
+4.2.1Tổng quan mô hình18
+4.2.2Sơ đồ luồng xử lý của mô hình19
+4.2.3Cấu hình huấn luyện19
+4.3Vision Transformer20
+4.3.1Tổng quan mô hình20
+4.3.2Sơ đồ luồng xử lý của mô hình21
+4.3.3Cấu hình huấn luyện21
+5Kết quả và đánh giá23
+5.1Các tiêu chí đánh giá mô hình23
+5.2Kết quả huấn luyện của ResNet5023
+5.2.1Biểu đồ loss24
+5.2.2Biểu đồ validation accuracy26
+5.2.3Confusion matrix27
+5.2.4Precision, Recall và F1-score theo từng lớp29
+5.3Kết quả huấn luyện của YOLO Classification31
+5.3.1Biểu đồ loss31
+5.3.2Biểu đồ validation accuracy33
+5.3.3Confusion matrix35
+5.3.4Precision, Recall và F1-score theo từng lớp37
+5.4Kết quả huấn luyện của Vision Transformer (ViT)39
+5.4.1Biểu đồ loss39
+5.4.2Biểu đồ validation accuracy41
+5.4.3Confusion matrix43
+5.4.4Precision, Recall và F1-score theo từng lớp45
+5.5So sánh kết quả thực nghiệm giữa ba mô hình46
+5.5.1Phân tích các lớp nhận ưu việt47
+5.5.2Phân tích các lớp nhạy cảm và hướng cải thiện47
+5.5.3Nhận xét tổng quan về kết quả thực nghiệm48
+6Kết luận và hướng phát triển49
+6.1Cấu hình mô hình tối ưu49
+6.2Hạn chế49
+6.3Hướng phát triển49
+Mục lục hình ảnh
+Hình 1.1 Quy trình tổng quan của hệ thống nhận diện phương tiện giao.3
+Hình 2.1 Phân phối số lượng ảnh gốc theo từng lớp.4
+Hình 2.2 Ma trận phân chia dữ liệu của nhánh dữ liệu raw.6
+Hình 2.3 Ma trận phân chia dữ liệu của nhánh dữ liệu cleaned.7
+Hình 3.1 Minh họa resize giữ tỉ lệ và zero-padding về 224 × 224.8
+Hình 3.2 Ma trận thống kê quá trình cân bằng và tăng cường dữ liệu train.9
+Hình 3.3 Ma trận thống kê quá trình cân bằng và tăng cường tập train của nhánh dữ liệu raw.9
+Hình 3.4 Các bucket môi trường trong phương pháp tăng cường dữ liệu V1.11
+Hình 3.5 Các bucket chất lượng ảnh trong phương pháp tăng cường dữ liệu V2.13
+Hình 3.6 Phân phối tập train sau cân bằng và tăng cường của hai nhánh raw và cleaned.15
+Hình 4.1 Sơ đồ luồng xử lý của mô hình ResNet50.17
+Hình 4.2 Sơ đồ luồng xử lý của mô hình YOLO Classification.19
+Hình 4.3 Sơ đồ luồng xử lý của mô hình Vision Transformer.21
+Hình 5.1 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v1.24
+Hình 5.2 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v2.25
+Hình 5.3 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v1.25
+Hình 5.4 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v2.25
+Hình 5.5 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v1.26
+Hình 5.6 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v2.26
+Hình 5.7 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v1.27
+Hình 5.8 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v2.27
+Hình 5.9 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v1.28
+Hình 5.10 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v2.28
+Hình 5.11 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v1.29
+Hình 5.12 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v2.29
+Hình 5.13 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v1.30
+Hình 5.14 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v2.30
+Hình 5.15 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v1.30
+Hình 5.16 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v2.31
+Hình 5.17 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v1.32
+Hình 5.18 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v2.32
+Hình 5.19 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v1.33
+Hình 5.20 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v2.33
+Hình 5.21 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v1.34
+Hình 5.22 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v2.34
+Hình 5.23 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v1.35
+Hình 5.24 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v2.35
+Hình 5.25 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v1.36
+Hình 5.26 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v2.36
+Hình 5.27 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v1.37
+Hình 5.28 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v2.37
+Hình 5.29 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v1.38
+Hình 5.30 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v2.38
+Hình 5.31 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v1.38
+Hình 5.32 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v2.39
+Hình 5.33 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v1.40
+Hình 5.34 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v2.40
+Hình 5.35 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v1.41
+Hình 5.36 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v2.41
+Hình 5.37 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v1.42
+Hình 5.38 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v2.42
+Hình 5.39 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v1.42
+Hình 5.40 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v2.43
+Hình 5.41 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v1.43
+Hình 5.42 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v2.44
+Hình 5.43 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v1.44
+Hình 5.44 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v2.45
+Hình 5.45 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v1.45
+Hình 5.46 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v2.46
+Hình 5.47 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v1.46
+Hình 5.48 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v2.46
+Tổng quan đề tài
+Đề tài hướng tới việc xây dựng hệ thống tự động nhận diện phương tiện giao thông từ ảnh tĩnh, được mô hình hóa dưới dạng bài toán phân loại ảnh đa lớp (Multi-class Image Classification). Cụ thể, hệ thống sẽ tiếp nhận ảnh đầu vào, áp dụng chuỗi tiền xử lý đồng nhất với quy trình huấn luyện, và xuất ra nhãn dự đoán tương ứng. Trong phạm vi của đồ án, nghiên cứu tập trung phân loại 10 nhóm phương tiện phổ biến, bao gồm: xe đạp, thuyền/tàu, xe buýt, ô tô, trực thăng, xe khách nhỏ, xe mô tô, taxi, tàu hỏa và xe tải.
+Bài toán, mục tiêu và ý nghĩa
+Sự phát triển của các hệ thống giao thông thông minh đòi hỏi khả năng nhận diện phương tiện tự động nhằm phục vụ công tác thống kê lưu lượng, giám sát đô thị, phân tích hành vi và hỗ trợ cảnh báo. Các phương pháp quan sát thủ công truyền thống thường bộc lộ nhiều hạn chế, dễ bị sai lệch do mật độ giao thông cao, điều kiện chiếu sáng phức tạp, hoặc sự tương đồng về hình thái giữa các dòng xe. Do đó, việc ứng dụng xử lý ảnh số kết hợp với học sâu (Deep Learning) là giải pháp thiết yếu giúp chuẩn hóa quy trình nhận dạng, đồng thời tạo ra các thước đo định lượng đáng tin cậy để đánh giá hiệu quả của hệ thống.
+Mục tiêu cốt lõi của đề tài là triển khai, huấn luyện và đối sánh hiệu năng của ba kiến trúc mạng tiêu biểu: ResNet50, YOLO Classification và Vision Transformer trên cùng một bài toán. Việc đánh giá không chỉ dừng lại ở độ chính xác tổng thể (Accuracy) mà còn đi sâu phân tích các chỉ số Precision, Recall, F1-score và Ma trận nhầm lẫn (Confusion Matrix) cho từng lớp cụ thể. Thông qua đó, báo cáo nhằm làm rõ mức độ tác động của các chiến lược chuẩn bị dữ liệu, tiền xử lý và tăng cường dữ liệu (Data Augmentation) đối với chất lượng nhận diện cuối cùng.
+Phạm vi, dữ liệu đầu vào và kết quả đầu ra
+Hệ thống được thiết lập trong phạm vi nhận diện một đối tượng phương tiện giao thông chủ đạo xuất hiện trong ảnh tĩnh. Dữ liệu đầu vào mang tính đa dạng cao, bao gồm các hình ảnh có sự biến thiên về độ phân giải, tỷ lệ khung hình (aspect ratio), bối cảnh nền và điều kiện thu nhận ảnh. Nhằm đảm bảo tính đồng nhất về cấu trúc không gian trước khi đưa vào các kiến trúc mạng học sâu, toàn bộ ảnh đầu vào đều được tiền xử lý để đồng bộ về kích thước chuẩn 224x 224 pixel. Quá trình này được thực hiện thông qua kỹ thuật thay đổi kích thước bảo toàn tỷ lệ phối hợp đệm viền (resize with zero-padding) nhằm tránh hiện tượng méo dạng hình học của phương tiện. Kết quả đầu ra (output) của hệ thống là nhãn phân loại dự đoán của phương tiện, đi kèm với mức độ tin cậy (confidence score) khi được thực thi trên giao diện suy luận.
+Lớp
+Tên tiếng Việt
+Nhóm dữ liệu
+bicycle
+Xe đạp
+Thiểu số
+boat
+Thuyền/Tàu
+Lớn
+bus
+Xe buýt
+Trung bình
+car
+Ô tô
+Lớn
+helicopter
+Trực thăng
+Thiểu số
+minibus
+Xe khách nhỏ
+Thiểu số
+motorcycle
+Xe mô tô
+Trung bình
+taxi
+Taxi
+Thiểu số
+train
+Tàu hỏa
+Thiểu số
+truck
+Xe tải
+Trung bình
+Tổng quan quy trình hệ thống
+Toàn bộ quy trình thực nghiệm được thiết kế một cách hệ thống, bao gồm bốn giai đoạn công việc chính. Đầu tiên, tập dữ liệu gốc được tiến hành rà soát, phân chia và cấu trúc hóa thư mục theo từng nhãn lớp cụ thể. Tiếp theo, hệ thống áp dụng một luồng tiền xử lý (pipeline) đồng nhất nhằm đảm bảo toàn bộ ảnh đầu vào đạt chuẩn về kích thước và có cùng phân phối thống kê với tập dữ liệu ImageNet. Giai đoạn thứ ba tập trung vào việc giải quyết bài toán mất cân bằng thông qua cân bằng lớp và tăng cường dữ liệu ngoại tuyến (Offline Augmentation) trên tập huấn luyện, từ đó hình thành hai phiên bản chiến lược V1 và V2. Cuối cùng, ba kiến trúc mạng học sâu được tiến hành huấn luyện độc lập trên bốn biến thể dữ liệu và được đánh giá hiệu năng khách quan thông qua tập kiểm thử (test set).
+Hình 1.1 Quy trình tổng quan của hệ thống nhận diện phương tiện giao.
+Cụ thể, quy trình được chia thành các bước:
+Giai đoạn xử lý dữ liệu: Tiến hành phân loại nhánh dữ liệu (raw/cleaned); chia tách tập dữ liệu thành các tập train, valid_unseen, test nhằm đảm bảo không xảy ra rò rỉ dữ liệu; đồng thời thiết lập tập valid_traincopy phục vụ mục đích đối chiếu phụ. 
+Giai đoạn tiền xử lý (Preprocessing): Chuyển đổi ảnh sang không gian màu RGB, thay đổi kích thước bảo toàn tỷ lệ kết hợp đệm viền (zero-padding) về định dạng 224x224 pixel, và chuẩn hóa (normalization) dựa trên giá trị mean/std của chuẩn ImageNet. 
+Giai đoạn tăng cường dữ liệu (Augmentation): Áp dụng kỹ thuật cân bằng phân phối lớp đối với tập train; tiến hành tạo ra các biến thể ảnh chuẩn (normal) cùng các biến thể mô phỏng điều kiện môi trường hoặc chất lượng ảnh thu nhận. 
+Giai đoạn huấn luyện và đánh giá: Thực thi huấn luyện mô hình, lưu giữ lại bộ trọng số (checkpoint) tối ưu nhất dựa trên tín hiệu giám sát từ tập valid_unseen, và thực hiện đánh giá chỉ số chính thức, độc lập trên tập test.
+Bộ dữ liệu và chiến lược chuẩn bị dữ liệu
+Chất lượng dữ liệu đóng vai trò quyết định đối với độ chính xác của bài toán phân loại ảnh phương tiện. Trong nghiên cứu này, chiến lược cốt lõi được áp dụng là phân chia dữ liệu (data splitting) trước khi thực hiện tăng cường, nhằm ngăn chặn triệt để hiện tượng rò rỉ dữ liệu (data leakage). Theo đó, kỹ thuật tăng cường dữ liệu (data augmentation) chỉ được áp dụng duy nhất trên tập huấn luyện (train set). Các tập xác thực (validation) và kiểm thử (test) được duy trì nguyên bản sau khi đi qua luồng tiền xử lý cơ bản (base preprocessing), hoàn toàn không chứa các biến thể nhân tạo nhằm đảm bảo tính khách quan khi đánh giá năng lực tổng quát hóa của mô hình.
+Nguồn dữ liệu
+Đồ án sử dụng bộ dữ liệu Vehicle-10, bao gồm 36.006 mẫu ảnh màu (RGB) phân bổ trên 10 lớp phương tiện khác nhau. Phân phối dữ liệu ban đầu cho thấy sự mất cân bằng lớp (class imbalance) rõ rệt: các nhóm phương tiện như thuyền/tàu (boat) và ô tô (car) chiếm số lượng áp đảo, trong khi trực thăng (helicopter), taxi (taxi), xe khách nhỏ (minibus), xe đạp (bicycle) và tàu hỏa (train) lại có số lượng mẫu khá hạn chế. 
+Để phục vụ mục đích thực nghiệm, dữ liệu được chia thành hai nhánh chính: nhánh dữ liệu thô (raw) giữ nguyên trạng thái từ nguồn thu thập ban đầu, và nhánh dữ liệu đã qua tinh chỉnh (cleaned) với việc loại bỏ bớt các ảnh nhiễu, ảnh lỗi hoặc không đạt tiêu chuẩn. Quá trình huấn luyện và đánh giá được tiến hành độc lập trên từng nhánh nhằm phân tích, đối sánh và làm rõ tác động của bước làm sạch cũng như tăng cường dữ liệu đối với hiệu năng tổng thể của mô hình.
+Hình 2.1 Phân phối số lượng ảnh gốc theo từng lớp.
+Mất cân bằng dữ liệu
+Vấn đề mất cân bằng phân phối lớp (class imbalance) là một trong những thách thức cốt lõi của bộ dữ liệu này. Khi số lượng mẫu giữa các lớp có sự chênh lệch lớn, mô hình thường có xu hướng thiên lệch (bias), học quá mức các đặc trưng của những lớp đa số và bỏ qua các đặc trưng vi mô của nhóm lớp thiểu số. Trong bối cảnh của bài toán, taxi và minibus được đánh giá là hai lớp có độ khó cao nhất. Nguyên nhân là do chúng không chỉ thiếu hụt về số lượng mẫu huấn luyện mà còn sở hữu ranh giới đặc trưng thị giác rất gần với các lớp phổ biến như car hay bus. Để giải quyết rủi ro đánh giá sai lệch, nghiên cứu không phụ thuộc hoàn toàn vào độ chính xác tổng thể (Accuracy), mà kết hợp sử dụng chỉ số Macro F1-score nhằm phản ánh công bằng và toàn diện hơn năng lực nhận diện trên từng lớp riêng biệt. 
+Nhóm lớp
+Lớp tiêu biểu
+Rủi ro khi huấn luyện
+Lớp đa số
+boat, car
+Có khả năng chi phối hàm loss, dẫn đến hiện tượng Accuracy tổng thể cao một cách giả tạo (accuracy paradox). 
+Lớp trung bình
+bus, motorcycle, truck
+Khả năng hội tụ tốt hơn lớp thiểu số, song vẫn tồn tại rủi ro nhầm lẫn (confusion) do sự tương đồng về hình thái. 
+Lớp thiểu số
+helicopter, taxi, train, bicycle, minibus
+Nguy cơ đạt chỉ số Recall rất thấp do mô hình không đủ dữ liệu để trích xuất đặc trưng nếu không áp dụng chiến lược cân bằng hoặc tăng cường. 
+Chuẩn bị và chia tập dữ liệu
+Nguyên tắc cốt lõi trong khâu chuẩn bị dữ liệu của nghiên cứu là thực hiện phân chia tập dữ liệu (data splitting) trước khi tiến hành cân bằng và tăng cường (data augmentation) trên tập huấn luyện. Cụ thể, toàn bộ dữ liệu gốc được phân bổ theo tỷ lệ 80% cho tập huấn luyện (train), 10% cho tập xác thực (validation) và 10% cho tập kiểm thử (test).
+Tập xác thực đóng vai trò giám sát khả năng tổng quát hóa (generalization) của mô hình trong suốt quá trình huấn luyện và là tiêu chí chính để lựa chọn bộ trọng số (checkpoint) tối ưu nhất. Trong khi đó, tập kiểm thử được bảo lưu tuyệt đối, đóng vai trò là tập dữ liệu độc lập hoàn toàn để phục vụ cho khâu đánh giá hiệu năng khách quan cuối cùng của hệ thống.
+Dữ liệu
+Tổng ảnh
+Train
+Valid unseen
+Test
+Raw
+36,006
+30,605
+1,800
+3,601
+Cleaned
+35,347
+30,045
+1,767
+3,535
+Hình 2.2 Ma trận phân chia dữ liệu của nhánh dữ liệu raw. 
+Hình 2.3 Ma trận phân chia dữ liệu của nhánh dữ liệu cleaned.
+Các số liệu thống kê trong bảng và hình trên phản ánh phân bố số lượng ảnh ngay sau bước phân chia ban đầu, tức là trước khi áp dụng bất kỳ kỹ thuật cân bằng hay tăng cường dữ liệu nào. Trong các giai đoạn tiếp theo, quy trình mở rộng dữ liệu chỉ được áp dụng duy nhất trên tập train; chi tiết về quy mô tập huấn luyện sau khi cân bằng và tăng cường sẽ được phân tích cụ thể ở Mục 3.2.
+Tiền xử lý và tăng cường dữ liệu
+Các kỹ thuật tiền xử lý (preprocessing) và tăng cường dữ liệu (data augmentation) trong nghiên cứu được thiết kế nhằm giải quyết hai mục tiêu trọng điểm: chuẩn hóa không gian đầu vào cho mạng học sâu và giảm thiểu tác động tiêu cực của hiện tượng mất cân bằng lớp. Một nguyên tắc nghiêm ngặt được áp dụng là các phép biến đổi tăng cường chỉ được thực thi độc quyền trên tập huấn luyện (train). Ngược lại, tập xác thực (validation), tập kiểm thử (test), cũng như dữ liệu ảnh thực tế khi suy luận (inference) chỉ đi qua luồng tiền xử lý cơ bản (base pipeline) nhằm đảm bảo tính khách quan và toàn vẹn của dữ liệu đánh giá.
+Quy trình tiền xử lý
+Mọi hình ảnh đầu vào hệ thống trước tiên được đồng bộ về không gian màu RGB. Để chuẩn hóa kích thước đầu vào mà không làm biến dạng đối tượng, hệ thống áp dụng kỹ thuật thay đổi kích thước dựa trên cạnh dài nhất (resize by longest edge) nhằm bảo toàn tuyệt đối tỷ lệ hình học gốc của phương tiện. Tiếp đó, ảnh được đệm thêm viền đen (zero-padding) để đạt định dạng kích thước vuông chuẩn $224 \times 224$ pixel. Phương pháp tiếp cận này đóng vai trò then chốt trong việc ngăn chặn hiện tượng méo lệch hình thái, đặc biệt quan trọng đối với việc bảo toàn đặc trưng của các phương tiện có cấu trúc thuôn dài như tàu hỏa (train), xe buýt (bus) hay xe tải (truck).
+Trong bước cuối cùng của quy trình, ma trận ảnh được chuyển đổi sang định dạng Tensor và trải qua phép chuẩn hóa (normalization) dựa trên các giá trị trung bình (mean) và độ lệch chuẩn (standard deviation) của bộ dữ liệu ImageNet, cụ thể: mean = [0.485, 0.456, 0.406] và std = [0.229, 0.224, 0.225]. Thao tác này giúp phân phối giá trị pixel của ảnh đầu vào tương thích hoàn toàn với không gian đặc trưng của các mô hình đã được huấn luyện trước (pretrained models).
+Hình 3.1 Minh họa resize giữ tỉ lệ và zero-padding về 224 × 224.
+Chiến lược cân bằng và mở rộng dữ liệu
+Tiếp nối quy trình phân chia dữ liệu, chiến lược cân bằng (class balancing) và tăng cường dữ liệu (data augmentation) được áp dụng độc quyền trên tập huấn luyện (train). Cụ thể, đối với nhánh dữ liệu thô (raw), sau quá trình cân bằng, quy mô mỗi lớp đạt 7.562 mẫu, nâng tổng số lượng dữ liệu huấn luyện lên 75.620 ảnh. Tương tự, đối với nhánh dữ liệu đã qua tinh chỉnh (cleaned), số lượng mẫu của mỗi lớp được chuẩn hóa về mức 7.390 ảnh, tương đương với tổng số 73.900 ảnh huấn luyện. Phương pháp tiếp cận này đóng vai trò quyết định trong việc triệt tiêu hiện tượng thiên lệch (bias) hướng về các lớp đa số, đồng thời đảm bảo rằng độ đo Macro F1-score phản ánh một cách trung thực và khách quan năng lực nhận diện của hệ thống trên từng phân lớp riêng biệt.
+Dữ liệu
+Ảnh/lớp sau cân bằng
+Tổng ảnh train
+Valid unseen
+Test
+Raw
+7.562
+75,620
+1,800
+3,601
+Cleaned
+7.390
+73,900
+1,767
+3,535
+Hình 3.2 Ma trận thống kê quá trình cân bằng và tăng cường dữ liệu train.
+Hình 3.3 Ma trận thống kê quá trình cân bằng và tăng cường tập train của nhánh dữ liệu raw.
+Các phép biến đổi ảnh
+Chiến lược tăng cường dữ liệu được thiết kế dựa trên hai nhóm phép biến đổi cốt lõi. Nhóm thứ nhất tập trung vào các biến đổi không gian hình học và nội dung (như lật ngang, xoay vi sai, dịch chuyển, biến đổi phối cảnh, tinh chỉnh độ sáng/độ tương phản và coarse dropout) nhằm mục đích mở rộng không gian mẫu cho các phân lớp thiểu số. Nhóm thứ hai bao gồm các phép biến đổi về điều kiện thu nhận ảnh, được áp dụng để mô phỏng sự đa dạng của môi trường thực tế cũng như chất lượng của thiết bị ghi hình. Sự kết hợp đan xen giữa hai nhóm biến đổi này không chỉ hỗ trợ mạng học sâu trích xuất hiệu quả các đặc trưng hình thái của phương tiện, mà còn gia tăng tính bền vững (robustness) trước các tác động nhiễu như thay đổi cường độ sáng, hiện tượng thời tiết (mưa), nhòe chuyển động (motion blur) hay ảnh bị can thiệp tăng độ sắc nét. 
+Mục tiêu cụ thể của từng phương pháp được tổng hợp như sau:
+Biến đổi hình học (Geometric Transformations): Tạo ra sự đa dạng về góc nhìn và vị trí không gian của đối tượng phương tiện, giúp mô hình đạt được tính bất biến (invariance) đối với các thay đổi về hướng và vị trí tọa độ. 
+Biến đổi cường độ sáng (Photometric Transformations): Giảm thiểu sự phụ thuộc và hiện tượng học vẹt (overfitting) của mạng nơ-ron vào các điều kiện chiếu sáng cụ thể tại thời điểm chụp. 
+Biến đổi chất lượng ảnh (Image Quality Transformations): Mô phỏng các rủi ro phát sinh từ phần cứng hoặc môi trường như mất nét, rung lắc camera, hoặc ảnh đã qua các bộ lọc sắc nét hóa (sharpen) nhân tạo. 
+Đảm bảo tính khách quan (Evaluation Integrity): Tuân thủ nghiêm ngặt nguyên tắc không áp dụng bất kỳ phép biến đổi nhân tạo nào lên tập valid_unseen và tập test nhằm duy trì tính toàn vẹn của dữ liệu trong khâu đánh giá hiệu năng.
+Phương pháp tăng cường dữ liệu V1
+Phiên bản tăng cường V1 được thiết kế với cơ chế phân bổ tỷ lệ nghiêm ngặt: duy trì 70% khối lượng dữ liệu ở trạng thái chuẩn (normal) và phân bổ 30% còn lại đều cho ba phân nhóm (bucket) mô phỏng biến thiên môi trường thực tế, bao gồm: mưa (rain), lóa sáng (sun) và ban đêm (night), mỗi phân nhóm chiếm 10%.
+Trong quá trình sinh dữ liệu, hệ thống ưu tiên sử dụng các ảnh gốc còn dư sau khi đã lấp đầy chỉ tiêu của nhóm normal. Trong trường hợp thiếu hụt số lượng (quota), ảnh nguồn sẽ được trích xuất theo cơ chế chọn ngẫu nhiên có hoàn lại (random sampling with replacement). Các ảnh này trước tiên sẽ trải qua các phép biến đổi hình học cơ sở (Geometric transformations), sau đó mới được áp dụng duy nhất một hiệu ứng môi trường tương ứng. Mục tiêu cốt lõi của chiến lược V1 là đánh giá và củng cố mức độ dung sai (tolerance) cũng như tính bền vững của mô hình trước những biến thiên phức tạp về điều kiện thu nhận ảnh thực tế.
+Phân nhóm (Bucket V1)
+Tỷ lệ phân bổ
+Cấu hình thông số kỹ thuật
+normal
+70%
+Ảnh đầu ra từ luồng tiền xử lý cơ bản, bảo toàn nguyên trạng, không áp dụng thêm hiệu ứng môi trường.
+rain
+10%
+Tạo 120 vệt mưa có chiều dài phân bố ngẫu nhiên từ 5-12 px; giảm cường độ sáng tổng thể theo công thức 0,88I - 8; kết hợp làm mờ bằng bộ lọc Gaussian Blur với bán kính 0,6.
+sun
+10%
+Khởi tạo tâm sáng tại tọa độ ngẫu nhiên với bán kính 36-64 px; áp dụng hệ màu lóa sáng theo dải RGB [255, 238, 190]; tăng cường độ sáng tổng thể theo công thức 1,08I + 8.
+night
+10%
+Hiệu chỉnh độ chói với hệ số Gamma 1,75; tinh chỉnh dải màu thông qua hệ số kênh RGB lần lượt là [0,72; 0,78; 0,95]; bổ sung nhiễu hạt Gaussian với độ lệch chuẩn 0,025.
+Hình 3.4 Các bucket môi trường trong phương pháp tăng cường dữ liệu V1.
+Phương pháp tăng cường dữ liệu V2
+Phiên bản tăng cường V2 kế thừa hoàn toàn cơ chế phân bổ tỷ lệ (70% normal và ba nhóm 10%), quy tắc ưu tiên điền đầy số lượng (quota), cũng như trình tự áp dụng các phép biến đổi hình học cơ sở (Geo) từ phiên bản V1. Tuy nhiên, V2 thay thế nhóm hiệu ứng mô phỏng môi trường bằng ba phép can thiệp trực tiếp vào chất lượng ảnh, bao gồm: làm mờ Gaussian (gaussian_blur), nhòe chuyển động (motion_blur) và tăng cường độ sắc nét (unsharp_mask).
+Chủ đích của thiết kế này là mô phỏng các giới hạn và lỗi kỹ thuật thường gặp ở hệ thống camera giám sát giao thông thực tế, chẳng hạn như hiện tượng mất nét quang học, nhòe hình do phương tiện di chuyển với vận tốc cao, hoặc hiện tượng ảnh bị thiết bị ghi hình xử lý sắc nét hóa quá mức. Thông qua phương pháp tiếp cận này, phiên bản V2 bảo toàn tuyệt đối các đặc trưng hình thái cốt lõi của nhãn lớp, đồng thời chủ động mở rộng dải phân bố chất lượng ảnh (image quality domain) mà hệ thống có khả năng tiếp nhận.
+Phân nhóm (Bucket V2)
+Tỷ lệ phân bổ
+Cấu hình thông số kỹ thuật
+normal
+70%
+Ảnh đầu ra đạt chuẩn sau quá trình tiền xử lý định cỡ và đệm viền (resize-padding), không áp dụng thêm nhiễu.
+gaussian_blur
+10%
+Áp dụng bộ lọc với kích thước kernel ngẫu nhiên 3x3 hoặc 5x5; độ lệch chuẩn (sigma) từ 0,4 đến 1,4; xử lý viền theo chế độ phản chiếu (Reflect border mode).
+motion_blur
+10%
+Sử dụng kernel tuyến tính kích thước 3, 5 hoặc 7; góc nghiêng ngẫu nhiên từ 0° đến 180°; tổng trọng số của kernel được chuẩn hóa nghiêm ngặt về 1.
+unsharp_mask
+10%
+Áp dụng kernel 3x3 hoặc 5x5 với độ lệch chuẩn (sigma) từ 0,5 đến 1,2; cường độ (amount) từ 0,3 đến 0,8; ngưỡng (threshold) từ 0 đến 5; giá trị pixel đầu ra được giới hạn trong dải chuẩn [0, 255].
+Hình 3.5 Các bucket chất lượng ảnh trong phương pháp tăng cường dữ liệu V2.
+Tăng cường dữ liệu trực tuyến trong quá trình huấn luyện
+Bên cạnh các kỹ thuật ngoại tuyến (V1, V2), hệ thống còn tích hợp thêm phương pháp tăng cường dữ liệu trực tuyến (online augmentation). Khác với ngoại tuyến, phương pháp này không tạo ra các tệp ảnh cố định mà thực hiện biến đổi ngẫu nhiên ở cấp độ mini-batch ngay trong quá trình nạp dữ liệu huấn luyện. Nhằm đảm bảo tính khách quan khi đánh giá năng lực tổng quát hóa, các kỹ thuật này chỉ được áp dụng trên tập huấn luyện (train), hoàn toàn không can thiệp vào tập xác thực hay kiểm thử.
+Kỹ thuật
+Mô hình áp dụng
+Vai trò cốt lõi
+MixUp
+ResNet50, Vision Transformer
+Trộn tuyến tính hai ảnh và nhãn để làm mềm ranh giới phân lớp.
+CutMix
+ResNet50, Vision Transformer
+Thay một vùng ảnh bằng vùng từ ảnh khác, nhãn trộn theo tỷ lệ diện tích.
+Mosaic
+YOLO Classification
+Ghép nhiều ảnh vào cùng một khung để tăng đa dạng bố cục và bối cảnh.
+Đối với các kiến trúc PyTorch (ResNet50, ViT), MixUp và CutMix được tích hợp để giảm thiểu hiện tượng mô hình quá tự tin vào một mẫu đơn lẻ, đồng thời ép buộc mạng nơ-ron khai thác các đặc trưng cục bộ thay vì ghi nhớ bối cảnh. Đối với YOLO, thuật toán Mosaic được nền tảng Ultralytics hỗ trợ nhằm gia tăng sự đa dạng về tỷ lệ khung hình. Tuy nhiên, mức độ tác động của các thuật toán này phụ thuộc trực tiếp vào hệ số cấu hình (hyperparameters) được thiết lập trong từng phiên huấn luyện thực tế.
+Thiết kế các bộ dữ liệu thực nghiệm
+Nhằm mục đích đánh giá khách quan và toàn diện mức độ ảnh hưởng của chất lượng dữ liệu nguồn cùng các chiến lược tăng cường (augmentation), nghiên cứu tiến hành thiết lập bốn bộ dữ liệu thực nghiệm độc lập. Cụ thể, hai bộ dữ liệu thuộc nhánh thô (raw) kế thừa nguyên trạng dữ liệu gốc, trong khi hai bộ thuộc nhánh tinh chỉnh (cleaned) sử dụng kho dữ liệu đã qua bước rà soát và làm sạch. Trong nội bộ từng nhánh, cấu hình V1 và V2 chỉ phân biệt với nhau ở cơ chế áp dụng các phép biến đổi trên 30% lượng dữ liệu bổ sung (nằm ngoài nhóm normal). Đồng thời, các nguyên tắc phân chia dữ liệu (data splitting) và quy mô phân bổ số lượng mẫu trên từng phân lớp đều được kiểm soát và duy trì đồng nhất tuyệt đối xuyên suốt các thực nghiệm. 
+Phiên bản thực nghiệm
+Nguồn dữ liệu
+Cấu hình Tăng cường (Augmentation)
+Mục tiêu phân tích đối sánh
+raw_v1
+Raw
+normal/ rain/ sun/ night
+Đánh giá tác động của các phép biến đổi môi trường trên nền dữ liệu gốc. 
+raw_v2
+Raw
+normal/gaussian_blur/ motion_blur / unsharp_mask
+Đánh giá tác động của các phép can thiệp chất lượng ảnh trên nền dữ liệu gốc. 
+cleaned_v1
+Cleaned
+normal / rain / sun / night
+Đánh giá hiệu quả của thao tác làm sạch dữ liệu khi kết hợp cùng chiến lược tăng cường môi trường V1. 
+cleaned_v2
+Cleaned
+normal / gaussian_blur / motion_blur / unsharp_mask
+Đánh giá hiệu quả của thao tác làm sạch dữ liệu khi kết hợp cùng chiến lược can thiệp chất lượng ảnh V2. 
+Phân phối dữ liệu sau cân bằng và tăng cường
+Các kỹ thuật tiền xử lý và tăng cường ảnh đã được hệ thống áp dụng một cách cẩn trọng nhằm bảo toàn cấu trúc hình thái cốt lõi của phương tiện, tránh việc lạm dụng các biến đổi quá mạnh sinh ra tín hiệu nhiễu (noise) vô nghĩa. 
+Kết quả cuối cùng của toàn bộ giai đoạn chuẩn bị dữ liệu được thể hiện qua biểu đồ phân phối lớp. Biểu đồ này cung cấp góc nhìn đối sánh trực quan về quy mô tập huấn luyện (train set) của cả hai nhánh dữ liệu thực nghiệm sau khi áp dụng chiến lược cân bằng và mở rộng. Cụ thể, đối với nhánh dữ liệu thô (raw), số lượng mẫu huấn luyện đã đạt trạng thái cân bằng tuyệt đối ở mức 7.562 ảnh cho mỗi phân lớp (nâng tổng quy mô lên 75.620 ảnh). Tương tự, đối với nhánh dữ liệu đã qua tinh chỉnh (cleaned), hệ thống cũng đồng bộ hóa thành công số lượng mẫu về mức 7.390 ảnh cho mỗi lớp (đạt tổng 73.900 ảnh).
+Việc thiết lập được sự cân bằng hoàn hảo trên cả hai nhánh dữ liệu thực nghiệm đóng vai trò then chốt trong việc loại bỏ triệt để nguy cơ thiên lệch (bias) hướng về các nhóm lớp đa số ban đầu. Đây chính là tiền đề dữ liệu vững chắc và công bằng nhất để các kiến trúc mạng nơ-ron chính thức bước vào giai đoạn huấn luyện chuyên sâu.
+Hình 3.6 Phân phối tập train sau cân bằng và tăng cường của hai nhánh raw và cleaned.
+Mô hình và quá trình huấn luyện
+Nghiên cứu tiến hành triển khai ba kiến trúc mạng nơ-ron tiêu biểu, đại diện cho ba trường phái tiếp cận khác nhau trong lĩnh vực thị giác máy tính: (1) Mạng nơ-ron tích chập (CNN) truyền thống tích hợp cơ chế kết nối thặng dư (residual connection), (2) Mô hình YOLO Classification được tối ưu hóa cho tốc độ suy luận, và (3) Kiến trúc Vision Transformer dựa trên cơ chế tự chú ý toàn cục (global self-attention). Điểm chung của cả ba mô hình là đều được thiết lập để tiếp nhận đầu vào có kích thước chuẩn hóa 224 x 224 pixel và xuất ra không gian dự đoán gồm 10 phân lớp phương tiện. 
+ResNet50
+Trong khuôn khổ đề tài, ResNet50 được lựa chọn làm mạng nơ-ron cơ sở (baseline model) nhờ đặc tính ổn định cao, tối ưu hóa huấn luyện dễ dàng và năng lực trích xuất đặc trưng cục bộ (local features) vượt trội. 
+Tổng quan mô hình
+Kiến trúc ResNet50 ứng dụng các khối thặng dư (residual blocks) nhằm khắc phục triệt để hiện tượng triệt tiêu đạo hàm (vanishing gradient), qua đó cho phép huấn luyện mạng CNN với độ sâu lớn. Khởi điểm, hệ thống nạp bộ trọng số học chuyển giao (pretrained weights) từ tập dữ liệu ImageNet. Cụm phân loại (classification head) nguyên bản sau đó được tinh chỉnh, thay thế bằng một lớp kết nối đầy đủ (Linear layer) với 10 ngõ ra tương ứng với 10 nhãn phương tiện của đồ án. Nhờ cơ chế thặng dư, mô hình có khả năng tổng hợp hiệu quả các đặc trưng phân cấp thông qua nhiều tầng tích chập: từ các chi tiết vi mô như cạnh (edge) và kết cấu (texture), cho đến cấu trúc hình khối không gian của phương tiện. 
+Sơ đồ luồng xử lý của mô hình
+Hình 4.1 Sơ đồ luồng xử lý của mô hình ResNet50.
+Luồng dữ liệu khởi đầu với các hình ảnh đầu vào đã qua chuỗi tiền xử lý cơ bản (base pipeline) trước khi được truyền vào mạng ResNet50. Khối trích xuất đặc trưng (Backbone CNN) thực hiện phân tích phân cấp, đi từ việc nhận diện các góc cạnh và kết cấu ở những tầng cạn, đến việc định hình cấu trúc tổng thể của phương tiện ở những tầng sâu. Sau khi đi qua lớp gộp trung bình toàn cục (Global Average Pooling), ma trận đặc trưng được làm phẳng thành vector và định tuyến qua cụm phân loại kết nối đầy đủ (Fully Connected Head). Cuối cùng, hàm kích hoạt Softmax được áp dụng để chuyển đổi các giá trị thô thành phân phối xác suất dự đoán cho 10 lớp phân loại. 
+Cấu hình huấn luyện
+Thành phần
+Cấu hình kỹ thuật
+Kiến trúc
+Khởi tạo mô hình torchvision ResNet50 kèm bộ trọng số pretrained từ ImageNet. 
+Input
+Ảnh màu không gian RGB, kích thước chuẩn hóa 224 x 224 pixel, tuân thủ dải phân phối ImageNet. 
+Hàm Loss
+CrossEntropyLoss tích hợp kỹ thuật làm trơn nhãn (label smoothing = 0.1) nhằm giảm thiểu overfitting. 
+Thuật toán tối ưu (Optimizer)
+AdamW kết hợp cơ chế suy giảm trọng số (weight decay = 1e-4). 
+Chiến lược Fine-tuning
+Trong 5 epoch đầu tiên: huấn luyện độc lập cụm phân loại (đóng băng toàn bộ trọng số backbone). 
+Các epoch tiếp theo: Mở khóa (unfreeze) layer 3 và layer 4 của mạng ResNet50 để cập nhật trọng số, tinh chỉnh sâu hơn các đặc trưng cấp cao. 
+Tốc độ học (Learning rate)
+Áp dụng tốc độ học phân biệt (Differential Learning Rates): lr_head = 1e-3 và lr_backbone = 1e-5. 
+Chiến lược lưu Checkpoint
+Tự động lưu lại bộ trọng số (best checkpoint) đạt giá trị hàm loss thấp nhất trên tập valid_unseen. 
+YOLO Classification
+YOLO Classification được lựa chọn nhằm đối sánh với các kiến trúc phức tạp, đại diện cho trường phái mạng nơ-ron hạng nhẹ (lightweight model) với ưu thế vượt trội về tốc độ suy luận (inference speed) và tính khả thi khi triển khai trên các hệ thống đòi hỏi tính thời gian thực. 
+Tổng quan mô hình
+Trong khuôn khổ đề tài, mô hình YOLO Classification được triển khai thông qua biến thể yolov8n-cls thuộc hệ sinh thái Ultralytics. Khác biệt với ResNet50 và ViT – vốn được khởi tạo theo chuẩn mô hình PyTorch truyền thống, kiến trúc YOLO tải trực tiếp cấu trúc mạng và bộ trọng số thông qua định dạng tệp checkpoint .pt. Xuyên suốt quá trình huấn luyện, hệ thống thư mục dữ liệu được tái cấu trúc và ánh xạ (mapping) nhằm tuân thủ nghiêm ngặt định dạng train/val/test của Ultralytics. Ở giai đoạn suy luận, mô hình sẽ xuất ra phân phối xác suất dự đoán cho các lớp (top-k) thông qua thuộc tính probs.
+Sơ đồ luồng xử lý của mô hình
+Hình 4.2 Sơ đồ luồng xử lý của mô hình YOLO Classification.
+Luồng xử lý của mô hình YOLO Classification khởi đầu với các ma trận ảnh đã qua bước tiền xử lý chuẩn hóa về kích thước 224 x 224 pixel. Mạng trục (backbone) YOLOv8n-cls đảm nhiệm vai trò trích xuất đặc trưng thông qua các khối tích chập được tối ưu hóa (lightweight CNN blocks). Tiếp đó, cụm phân loại (classification head) sẽ chuyển đổi các vector đặc trưng này thành phân phối xác suất dự đoán cho từng nhãn lớp. Ưu điểm cốt lõi của hướng tiếp cận này nằm ở tốc độ xử lý vượt trội cùng pipeline huấn luyện và gọi mô hình tinh gọn, đặc biệt phù hợp cho các bài toán yêu cầu nhận diện trực tiếp và phản hồi nhanh.
+Cấu hình huấn luyện
+Thành phần
+Cấu hình kỹ thuật
+Kiến trúc
+Sử dụng tập trọng số khởi tạo yolov8n-cls.pt.
+Input
+Kích thước ảnh đầu vào: imgsz = 224.
+Batch Size
+batch = 128 (được thiết lập trực tiếp trong tệp script cấu hình).
+Số chu kỳ (Epoch/Patience)
+Khởi tạo giới hạn tối đa epochs = 100, kết hợp cơ chế dừng sớm (Early Stopping) với patience = 10. Số epoch huấn luyện thực tế sẽ phụ thuộc vào thời điểm hội tụ để kích hoạt cơ chế dừng sớm này.
+Tập xác thực (Validation)
+Ánh xạ trực tiếp tập valid_unseen thành tập val theo chuẩn quy ước của Ultralytics.
+Chiến lược Checkpoint
+Mô hình đạt hiệu năng tốt nhất (best.pt) được hệ thống tự động sao chép và lưu trữ tại đường dẫn models/yolo/yolo_cls_best.pt.
+Tiêu chí lựa chọn mô hình
+Đánh giá và lưu trữ trọng số dựa trên chỉ số top-1 accuracy đối chiếu trên tập valid_unseen.
+Vision Transformer
+Kiến trúc Vision Transformer (ViT) được triển khai với vai trò là mô hình đối sánh cấp cao, sở hữu năng lực vượt trội trong việc học và trích xuất các mối quan hệ toàn cục (global contextual relationships) giữa các vùng không gian trong ảnh.
+Tổng quan mô hình
+Vision Transformer hoạt động dựa trên cơ chế phân mảnh ma trận ảnh đầu vào có kích thước 224 x 224 thành các khối nhỏ (patches) có kích thước 16 x 16 pixel. Mỗi khối này sau đó được chuyển đổi thành một vector đặc trưng (token) và được truyền qua dải các tầng Transformer Encoder. Khác biệt căn bản so với mạng tích chập (CNN), ViT không bị giới hạn bởi trường nhìn cục bộ (local receptive field) mà ứng dụng cơ chế tự chú ý (self-attention) để phân tích mối tương quan giữa các vùng ảnh dù ở khoảng cách xa. Đặc tính này đặc biệt phát huy hiệu quả khi hệ thống cần phân biệt các phương tiện có cấu trúc tổng thể khác biệt, hoặc khi bối cảnh xung quanh (ngữ cảnh) đóng vai trò củng cố độ tin cậy cho nhãn dự đoán.
+Sơ đồ luồng xử lý của mô hình
+Hình 4.3 Sơ đồ luồng xử lý của mô hình Vision Transformer.
+Sau khi ảnh đầu vào hoàn tất bước tiền xử lý chuẩn hóa, kiến trúc ViT tiến hành phân mảnh ảnh và tích hợp vector nhúng vị trí (positional embedding) cho từng patch nhằm bảo toàn thông tin tọa độ không gian. Khối Transformer Encoder tiếp nhận và khai thác sự phụ thuộc chéo giữa các patch này. Cuối cùng, token đại diện toàn cục (CLS token) chứa đựng thông tin tổng hợp của toàn bộ bức ảnh được định tuyến qua cụm phân loại (classification head). Hàm kích hoạt Softmax tại lớp cuối cùng chịu trách nhiệm tạo ra phân phối xác suất dự đoán trên không gian 10 nhãn phương tiện.
+Cấu hình huấn luyện
+Thành phần
+Cấu hình kỹ thuật
+Kiến trúc
+Khởi tạo mô hình torchvision ViT-B/16 kèm bộ trọng số pretrained từ ImageNet.
+Input
+Ảnh màu không gian RGB kích thước 224 x 224, chia thành các patch 16 x 16.
+Hàm loss
+CrossEntropyLoss tích hợp kỹ thuật làm trơn nhãn (label smoothing = 0.1) nhằm giảm thiểu overfitting.
+Thuật toán tối ưu (Optimizer)
+AdamW.
+Chiến lược Fine-tuning
+Giai đoạn đầu: Huấn luyện độc lập cụm phân loại (Train Head-only).
+Giai đoạn sau: Mở khóa (unfreeze) 2 block Transformer Encoder cuối cùng (block 10 và block 11) để cập nhật trọng số, nhằm tinh chỉnh đặc trưng trong khi vẫn bảo toàn các tri thức tổng quát đã được pretrained.
+Tốc độ học (Learning rate)
+Thiết lập tốc độ học phân biệt (Differential Learning Rates): Head học với tốc độ nhanh hơn so với Backbone để duy trì độ ổn định của các đặc trưng pretrained.
+Chiến lược Checkpoint
+Tự động lưu trữ bộ trọng số (best checkpoint) dựa trên giá trị tối ưu của tập valid_unseen.
+Kết quả và đánh giá
+Để đo lường khách quan và đối sánh hiệu năng giữa các kiến trúc mạng nơ-ron, nghiên cứu áp dụng hệ thống các tiêu chí đánh giá chuẩn mực trong bài toán phân loại ảnh đa lớp. Do đặc thù bộ dữ liệu ban đầu có sự chênh lệch lớn về số lượng mẫu, hệ thống không chỉ phụ thuộc vào độ chính xác tổng thể mà còn đi sâu phân tích các độ đo chi tiết nhằm đảm bảo tính công bằng cho các lớp thiểu số.
+Các tiêu chí đánh giá mô hình
+Tiêu chí
+Ý nghĩa và Mục đích đánh giá
+Độ chính xác tổng thể (Accuracy)
+Tỷ lệ dự đoán đúng trên toàn bộ tập dữ liệu. Dễ gây ra nhận định sai lệch (accuracy paradox) đối với tập dữ liệu mất cân bằng.
+Độ chính xác (Precision)
+Phản ánh mức độ tin cậy của mô hình: Trong số các mẫu được hệ thống dự đoán là nhãn A, có bao nhiêu phần trăm thực sự là nhãn A.
+Độ bao phủ (Recall)
+Thể hiện năng lực "không bỏ lọt" đối tượng: Trong tổng số các mẫu thực tế là nhãn A, hệ thống tìm ra được bao nhiêu phần trăm.
+Điểm F1 (F1-score)
+Là trung bình điều hòa của Precision và Recall, giúp đánh giá cân bằng hiệu năng.
+Macro F1: Trung bình F1 của các lớp với trọng số ngang bằng, độc lập với số lượng mẫu. Đây là thước đo khắt khe nhất để đánh giá các lớp thiểu số (như taxi, minibus).
+Weighted F1: Trung bình F1 với trọng số tỷ lệ thuận với số lượng mẫu thực tế của từng lớp.
+Ma trận nhầm lẫn (Confusion Matrix)
+Cung cấp cái nhìn chi tiết về sự phân bổ dự đoán, giúp nhận diện rõ các hiện tượng phân loại chéo (cross-class confusion) - ví dụ: mô hình hay nhầm lẫn car với taxi.
+Kết quả huấn luyện của ResNet50
+Kết quả thực nghiệm minh chứng kiến trúc ResNet50 đạt độ ổn định cao và hội tụ tốt trên cả bốn cấu hình dữ liệu. Dựa trên bảng thống kê, độ chính xác trên tập kiểm thử (Test Accuracy) ghi nhận sự thăng tiến tuyến tính theo thứ tự: raw_v1 (91,70%), raw_v2 (92,42%), cleaned_v1 (93,01%) và đạt đỉnh tối ưu tại phiên bản cleaned_v2 với 93,27%. Sự gia tăng này là minh chứng rõ nét cho thấy kiến trúc mạng nơ-ron tích chập cơ sở (CNN baseline) đã khai thác cực kỳ hiệu quả không gian đặc trưng khi được cung cấp kho dữ liệu rà soát sạch (cleaned) kết hợp cùng chiến lược can thiệp chất lượng ảnh (V2).
+Dataset
+Test Acc
+Macro F1
+Weighted F1
+Samples
+Epochs
+Best valid Acc
+raw_v1
+91.70%
+89.86%
+91.70%
+3601
+21
+92.50%
+raw_v2
+92.42%
+90.88%
+92.45%
+3601
+30
+92.72%
+cleaned_v1
+93.01%
+90.66%
+92.95%
+3535
+21
+93.27%
+cleaned_v2
+93.27%
+91.38%
+93.24%
+3535
+23
+93.21%
+Biểu đồ loss
+Quan sát đường cong suy hao (loss curve) của ResNet50, hàm loss trên tập huấn luyện (train loss) suy giảm đều đặn và ổn định xuyên suốt các thực nghiệm. Cùng lúc đó, giá trị valid_loss giảm mạnh ở những epoch đầu tiên, sau đó tiến vào trạng thái đi ngang hoặc dao động với biên độ hẹp ở giai đoạn cuối. Đồ thị không ghi nhận hiện tượng valid_loss tăng bứt phá trở lại, chứng tỏ hệ thống không rơi vào trạng thái quá khớp (overfitting) nghiêm trọng. Do vậy, chiến lược trích xuất bộ trọng số (checkpoint) dựa trên giá trị tổn thất tối ưu của tập valid_unseen là một quyết định chuẩn xác và an toàn hơn so với việc ấn định trọng số tại epoch cuối cùng.
+Hình 5.1 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v1.
+Hình 5.2 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v2.
+Hình 5.3 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v1.
+Hình 5.4 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v2.
+Biểu đồ validation accuracy
+Như được thể hiện tại Hình 5.2, quỹ đạo của độ chính xác trên tập xác thực (validation accuracy) gia tăng tiệm cận cực đại rất nhanh trong giai đoạn đầu, sau đó duy trì mức dao động nhẹ quanh vùng hội tụ. Điểm đáng chú ý từ bảng kết quả là sự đảo chiều vi thành tích: mặc dù cấu hình cleaned_v1 thiết lập đỉnh valid_accuracy cao nhất trong nhóm (xấp xỉ 93,27%), nhưng cleaned_v2 (với valid_accuracy đạt 93,21%) mới là phiên bản mang lại khả năng tổng quát hóa xuất sắc nhất trên tập kiểm thử độc lập (test_accuracy).
+Hình 5.5 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v1.
+Hình 5.6 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v2.
+Hình 5.7 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v1.
+Hình 5.8 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v2.
+Confusion matrix
+Phân tích ma trận nhầm lẫn (Confusion Matrix) tại Hình 5.3 chỉ ra rằng ResNet50 trích xuất và phân loại cực kỳ xuất sắc các phương tiện có hình thái độc lập và rõ nét như tàu thủy (boat), xe máy (motorcycle) và tàu hỏa (train). Ngược lại, điểm yếu của mạng lộ rõ tại các phân lớp có sự giao thoa về đặc điểm không gian như taxi, xe khách cỡ nhỏ (minibus) và xe tải (truck). Tỷ lệ nhận diện chéo (cross-class confusion) tăng cao đáng kể đối với các nhóm này, đặc biệt khi phương tiện bị ghi hình ở các góc chụp che khuất hoặc thiếu chi tiết, khiến mô hình dễ dàng đánh đồng chúng với xe con (car) hoặc xe buýt cỡ lớn (bus).
+Hình 5.9 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v1.
+Hình 5.10 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v2.
+Hình 5.11 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v1.
+Hình 5.12 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v2.
+Precision, Recall và F1-score theo từng lớp
+Phân tích sâu hơn trên phiên bản tối ưu nhất (cleaned_v2), dải phân phối Precision, Recall và F1-score (PRF) tại Hình 5.4 tái khẳng định năng lực phân loại vượt trội của mô hình đối với lớp boat (đạt hiệu năng cực đại với F1-score 97,54%). Ở chiều ngược lại, taxi là phân lớp tạo ra nhiều thách thức nhất khi điểm số chỉ dừng lại ở mức 79,04%. Nhìn chung, biểu đồ cột PRF phản ánh sự sụt giảm hiệu năng rõ rệt tại các lớp minibus và truck khi đặt lên bàn cân so sánh với nhóm phương tiện có cấu trúc hình học mang tính đặc thù cao.
+Hình 5.13 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v1.
+Hình 5.14 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v2.
+Hình 5.15 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v1.
+Hình 5.16 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v2.
+Kết quả huấn luyện của YOLO Classification
+Được thiết kế định hướng là một kiến trúc mạng hạng nhẹ (lightweight model) tối ưu cho tốc độ, YOLO Classification ghi nhận ngưỡng hiệu năng tổng thể thấp hơn so với ResNet50 và ViT. Mặc dù vậy, hệ thống vẫn duy trì được độ chính xác ở mức khá tốt. Đáng chú ý, kết quả tối ưu nhất của dòng mô hình này được xác lập tại phiên bản cleaned_v1 với Test Accuracy đạt 92,08% và Macro F1 đạt 90,17%. Khi chuyển sang cấu hình tăng cường chất lượng ảnh (cleaned_v2), mặc dù hiệu năng vẫn vượt trội hơn hẳn so với nhánh dữ liệu thô (raw), nhưng lại ghi nhận sự sụt giảm nhẹ so với cleaned_v1 (Test Acc giảm còn 91,71%). Điều này minh chứng rằng không phải chiến lược tăng cường phức tạp nào (V2) cũng mang lại hiệu quả tích cực hơn chiến lược cơ bản (V1) đối với các mô hình có dung lượng tham số khiêm tốn như YOLO.
+Dataset
+Test Acc
+Macro F1
+Weighted F1
+Samples
+Epochs
+Best valid Acc
+raw_v1
+90.25%
+87.71%
+90.21%
+3601
+14
+90.61%
+raw_v2
+91.20%
+88.76%
+91.14%
+3601
+30
+91.28%
+cleaned_v1
+92.08%
+90.17%
+92.05%
+3535
+30
+92.64%
+cleaned_v2
+91.71%
+89.49%
+91.68%
+3535
+30
+92.25%
+Biểu đồ loss
+Phân tích đường cong suy hao cho thấy đặc tính hội tụ cực kỳ nhanh của YOLOv8n-cls trên tập huấn luyện, với train_loss lao dốc thẳng đứng ngay từ những epoch đầu tiên. Tuy nhiên, hành vi của valid_loss lại phơi bày những rủi ro nhất định: sau giai đoạn giảm đầu tiên, hàm loss trên tập xác thực bắt đầu có xu hướng dao động với biên độ lớn hoặc thậm chí tăng ngược trở lại (hiện tượng này bộc lộ rất rõ ở các cấu hình raw_v2 và cleaned_v2). Đây là tín hiệu điển hình của trạng thái quá khớp (overfitting) nhẹ, khi mô hình bắt đầu "học vẹt" các đặc trưng nhiễu từ các phép biến đổi ảnh. Trong bối cảnh này, việc nhóm nghiên cứu áp dụng cơ chế dừng sớm (Early Stopping) và trích xuất điểm trọng số tối ưu (best checkpoint) đã phát huy tối đa giá trị, giúp chặn đứng tác động tiêu cực của overfitting và bảo toàn năng lực tổng quát hóa khách quan nhất.
+Hình 5.17 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v1.
+Hình 5.18 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v2.
+Hình 5.19 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v1.
+Hình 5.20 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v2.
+Biểu đồ validation accuracy
+Tương đồng với tốc độ giảm của hàm loss, độ chính xác trên tập valid của YOLO tăng vọt chỉ trong vài epoch đầu và nhanh chóng thiết lập mặt bằng hội tụ. Nhìn chung, các đường cong validation accuracy thuộc nhánh cleaned duy trì được quỹ đạo ổn định và neo ở biên độ cao hơn so với nhánh raw. Tuy nhiên, do ảnh hưởng của hiện tượng dao động loss đã phân tích ở trên, quỹ đạo này không duy trì được trạng thái tăng tịnh tiến liên tục xuyên suốt toàn bộ quá trình huấn luyện.
+Hình 5.21 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v1.
+Hình 5.22 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v2.
+Hình 5.23 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v1.
+Hình 5.24 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v2.
+Confusion matrix
+Ma trận nhầm lẫn tái khẳng định năng lực phân loại tốt của YOLO đối với các nhóm đối tượng có hình dáng tách biệt như boat, motorcycle và train. Tuy nhiên, độ nhạy của mạng giảm sút nghiêm trọng đối với cụm phương tiện có đặc trưng thị giác tương đồng. Lỗi phân loại chéo (cross-class error) bùng phát mạnh mẽ nhất giữa các cặp taxi-car, minibus-car/bus và truck-car/bus. Điều này cho thấy giới hạn của cấu trúc mạng nhẹ trong việc trích xuất các đặc trưng phân biệt vi mô (fine-grained features) khi đối mặt với những phương tiện có chung bộ khung thiết kế tổng thể.
+Hình 5.25 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v1.
+Hình 5.26 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v2.
+Hình 5.27 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v1.
+Hình 5.28 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v2.
+Precision, Recall và F1-score theo từng lớp
+Soi chiếu chi tiết vào mô hình đạt hiệu năng cao nhất (cleaned_v1), biểu đồ phân phối PRF cho thấy độ chênh lệch khá lớn giữa các phân lớp. boat tiếp tục là nhãn được nhận diện chính xác nhất với F1-score chạm mức 96,99%. Ở thái cực ngược lại, taxi là "điểm mù" lớn nhất của kiến trúc này, ghi nhận mức F1-score chạm đáy với chỉ 76,54%. Thông số này hoàn toàn nhất quán với những điểm yếu đã được bóc tách trên Confusion Matrix, khi nhãn taxi thường xuyên bị thuật toán nhầm thành car.
+Hình 5.29 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v1.
+Hình 5.30 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v2.
+Hình 5.31 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v1.
+Hình 5.32 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v2.
+Kết quả huấn luyện của Vision Transformer (ViT)
+Trong số ba kiến trúc được triển khai, Vision Transformer (ViT) thiết lập ngưỡng hiệu năng cao nhất, khẳng định ưu thế vượt trội trong việc trích xuất các mối quan hệ ngữ cảnh toàn cục (global contextual relationships) giữa các vùng ảnh.
+Kết quả đối sánh thực nghiệm trên tập kiểm thử cho thấy phiên bản cleaned_v2 đạt độ chính xác 94,54% và chỉ số Macro F1 93,04%. Đối với cấu hình raw_v2, sau khi đánh giá lại dựa trên điểm trọng số tối ưu (best checkpoint), mô hình ghi nhận các thông số ấn tượng với Test Accuracy 93,92%, Macro F1 91,82% và Weighted F1 93,94% trên quy mô 3.601 ảnh. Sự vượt trội này cho thấy cơ chế self-attention của ViT đã hỗ trợ mô hình học được các cấu trúc hình thái phức tạp và phân biệt hiệu quả các lớp phương tiện có hình dạng tổng thể tương đồng.
+Dataset
+Test Acc
+Macro F1
+Weighted F1
+Samples
+Epochs
+Best valid Acc
+raw_v1
+94.06%
+92.31%
+94.05%
+3601
+15
+93.61%
+raw_v2
+93.92%
+91.82%
+93.94%
+3601
+17
+93.61%
+cleaned_v1
+94.20%
+92.51%
+94.19%
+3535
+16
+94.40%
+cleaned_v2
+94.54%
+93.04%
+94.52%
+3535
+15
+94.51%
+Biểu đồ loss 
+Đường cong suy hao của ViT minh chứng quá trình tinh chỉnh (fine-tuning) diễn ra ổn định. Giá trị train_loss giảm dần đều qua các epoch, trong khi valid_loss đạt trạng thái hội tụ sau giai đoạn đầu. Mặc dù tại một vài thực nghiệm ghi nhận dao động nhẹ của valid_loss ở cuối quá trình, nhưng do chỉ số validation_accuracy vẫn duy trì ở mức cao, kết luận về hiệu năng mô hình được ưu tiên dựa trên best checkpoint thay vì epoch cuối cùng.
+Hình 5.33 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v1.
+Hình 5.34 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v2.
+Hình 5.35 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v1.
+Hình 5.36 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v2.
+Biểu đồ validation accuracy 
+Kết quả tại dưới đây cho thấy độ chính xác trên tập xác thực của ViT đạt mức cao nhất trong nhóm ba mô hình. Phiên bản cleaned_v2 đạt best valid accuracy xấp xỉ 94,51%, tiếp theo là cleaned_v1 với kết quả trên 94%, và raw_v2 hội tụ ổn định quanh vùng 93%. Sự nhất quán giữa kết quả trên tập xác thực và tập kiểm thử khẳng định tính ổn định và khả năng tổng quát hóa tốt của kiến trúc ViT trên các bộ dữ liệu khác nhau.
+Hình 5.37 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v1.
+Hình 5.38 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v2.
+Hình 5.39 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v1.
+Hình 5.40 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v2.
+Confusion matrix 
+Ma trận nhầm lẫn cho thấy đường chéo chính chiếm ưu thế, thể hiện tỷ lệ dự đoán đúng cao ở hầu hết các phân lớp. Các sai số phân loại còn lại tập trung chủ yếu tại các lớp minibus, taxi và truck, trong đó taxi thường bị nhầm lẫn với car, còn minibus/truck có thể bị nhận diện sai thành car hoặc bus do ảnh hưởng từ góc chụp.
+Hình 5.41 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v1.
+Hình 5.42 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v2.
+Hình 5.43 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v1.
+Hình 5.44 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v2.
+Precision, Recall và F1-score theo từng lớp 
+Phân tích trên tập cleaned_v2 cho thấy boat là lớp đạt hiệu năng cao nhất (98,34%), trong khi minibus là lớp thấp nhất (82,76%). Riêng với tập raw_v2, lớp train đạt chỉ số F1 lên tới 99,41%, còn lớp taxi đạt 78,02%. Kết quả cho thấy các phương tiện có cấu trúc đặc thù (tàu hỏa, tàu thủy, xe máy) luôn đạt F1-score rất cao, trong khi các lớp có ranh giới thị giác gần với xe con hoặc xe buýt thường có hiệu năng thấp hơn. Mặc dù raw_v2 có chỉ số Accuracy và Weighted F1 cao (gần 93,94%), nhưng chỉ số Macro F1 bị kéo giảm do ảnh hưởng từ các lớp khó như taxi và minibus.
+Hình 5.45 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v1.
+Hình 5.46 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v2.
+Hình 5.47 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v1.
+Hình 5.48 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v2.
+So sánh kết quả thực nghiệm giữa ba mô hình
+Bảng tổng hợp cung cấp cái nhìn tổng quan về hiệu năng của ba kiến trúc ResNet50, YOLO và ViT trên bốn cấu hình dữ liệu. Nhìn chung, cấu hình cleaned_v2 mang lại kết quả tối ưu cho ViT (94,54% Test Accuracy) và ResNet50 (93,27% Test Accuracy), khẳng định tính hiệu quả của chiến lược làm sạch dữ liệu và tăng cường V2.
+Mô hình
+Dataset
+Test Acc
+Macro F1
+Weighted F1
+ResNet50
+raw_v1
+91.70%
+89.86%
+91.70%
+ResNet50
+raw_v2
+92.42%
+90.88%
+92.45%
+ResNet50
+cleaned_v1
+93.01%
+90.66%
+92.95%
+ResNet50
+cleaned_v2
+93.27%
+91.38%
+93.24%
+YOLO Classification
+raw_v1
+90.25%
+87.71%
+90.21%
+YOLO Classification
+raw_v2
+91.20%
+88.76%
+91.14%
+YOLO Classification
+cleaned_v1
+92.08%
+90.17%
+92.05%
+YOLO Classification
+cleaned_v2
+91.71%
+89.49%
+91.68%
+Vision Transformer
+raw_v1
+94.06%
+92.31%
+94.05%
+Vision Transformer
+raw_v2
+93.92%
+91.82%
+93.94%
+Vision Transformer
+cleaned_v1
+94.20%
+92.51%
+94.19%
+Vision Transformer
+cleaned_v2
+94.54%
+93.04%
+94.52%
+Phân tích các lớp nhận ưu việt
+Các lớp boat, motorcycle, train và helicopter luôn duy trì mức F1-score vượt trội trên cả ba mô hình. Nhờ số lượng mẫu dồi dào và cấu trúc hình thái đặc thù (không có sự giao thoa với phương tiện đường bộ), các lớp này cho phép mô hình thiết lập ranh giới phân loại rất rõ nét. Đặc biệt trên ViT, các lớp này đạt F1-score tiệm cận mức 98%.
+Phân tích các lớp nhạy cảm và hướng cải thiện
+Trái ngược với nhóm ưu việt, các lớp taxi, minibus, truck và car thường xuyên xuất hiện hiện tượng phân loại chéo. Đây cũng là nguyên nhân khiến chỉ số Macro F1 thường thấp hơn Weighted F1.
+Lớp khó
+Nguyên nhân chính
+Hướng cải thiện
+taxi
+Dễ nhầm với car, đặc trưng nhận diện không ổn định.
+Bổ sung dữ liệu đa góc độ, chú trọng màu sắc/biển hiệu.
+minibus
+Hình dáng nằm giữa bus và car, ranh giới đặc trưng mờ.
+Tăng cường mẫu dữ liệu, thêm ảnh crop rõ chi tiết thân xe.
+truck
+Dễ nhầm với bus khi thiếu chi tiết phần thùng xe.
+Bổ sung ảnh góc nhìn ngang và phía sau.
+car
+Bị trộn lẫn do sự tương đồng cao với taxi/minibus.
+Rà soát, làm sạch nhãn và cân bằng lại phân phối dữ liệu.
+Trong tương lai, việc áp dụng các hàm loss có trọng số (Weighted Cross-Entropy) hoặc Focal Loss sẽ giúp mô hình tập trung hơn vào các mẫu khó, từ đó cải thiện hiệu năng cho nhóm này.
+Nhận xét tổng quan về kết quả thực nghiệm
+Sự cải thiện hiệu năng từ nhánh dữ liệu raw sang cleaned là minh chứng rõ rệt cho giá trị của công tác làm sạch dữ liệu. ResNet50 thể hiện sự ổn định cao, YOLO tối ưu cho các bài toán suy luận nhanh, và ViT khẳng định vị thế dẫn đầu về độ chính xác. Các sai sót còn lại chủ yếu xuất phát từ sự tương đồng hình thái, không phải lỗi logic hệ thống, do đó các hướng cải thiện tập trung vào dữ liệu và hàm  là hoàn toàn xác đáng.
+Kết luận và hướng phát triển
+Đồ án đã hoàn thành trọn vẹn quy trình xây dựng hệ thống nhận diện phương tiện giao thông thông minh, từ bước chuẩn bị, làm sạch, tăng cường dữ liệu cho đến triển khai huấn luyện và đánh giá trên ba kiến trúc mạng nơ-ron tiêu biểu. Kết quả thực nghiệm đã khẳng định vai trò then chốt của chất lượng dữ liệu nguồn và các chiến lược tăng cường ảnh trong việc tối ưu hóa năng lực tổng quát hóa của mô hình.
+Cấu hình mô hình tối ưu
+Dựa trên kết quả đối sánh đa chiều, đồ án đề xuất các cấu hình tối ưu tương ứng với từng bài toán thực tế:
+Ưu tiên độ chính xác cao nhất: Kiến trúc Vision Transformer (cleaned_v2) là lựa chọn hàng đầu với Test Accuracy 94,54%.
+Cân bằng giữa độ ổn định và chi phí tính toán: Kiến trúc ResNet50 (cleaned_v2) thể hiện hiệu năng xuất sắc với Test Accuracy 93,27%, phù hợp với các hệ thống cần sự cân bằng giữa tài nguyên và hiệu quả.
+Ưu tiên tốc độ và tính khả dụng: Kiến trúc YOLO Classification (cleaned_v1) cung cấp giải pháp triển khai tinh gọn, tốc độ suy luận nhanh, tối ưu cho các bài toán nhận diện thời gian thực.
+Hạn chế
+Mặc dù hệ thống đạt hiệu năng cao, việc phân loại các nhóm phương tiện có sự tương đồng lớn về cấu trúc hình thái trong môi trường giao thông phức tạp vẫn còn tồn tại những thách thức khách quan.
+Hướng phát triển
+Trong giai đoạn tiếp theo, nghiên cứu sẽ tập trung vào việc nâng cấp hệ thống theo các định hướng:
+Tích hợp Detection & Classification: Triển khai quy trình hai bước: khoanh vùng đối tượng (detection) trước khi phân loại (classification) để tối ưu khả năng xử lý trên ảnh giao thông thực tế có nền phức tạp.
+Tối ưu hóa kiến trúc: Thử nghiệm các mô hình trọng lượng nhẹ như MobileNet, EfficientNet hoặc ConvNeXt-Tiny nhằm hài hòa giữa chỉ số Accuracy và độ trễ (latency).
+Khả năng giải thích mô hình: Ứng dụng kỹ thuật Grad-CAM/Attention Map để diễn giải các vùng ảnh trọng tâm, tăng tính minh bạch trong quyết định của mạng nơ-ron.
+Chuẩn hóa quy trình triển khai: Tối ưu hóa mô hình bằng ONNX/TensorRT và đo đạc hiệu năng thực tế trên các nền tảng phần cứng khác nhau.
+Đa dạng hóa tập dữ liệu: Xây dựng tập kiểm thử mở rộng với các điều kiện môi trường thực tế khắt khe hơn (thời tiết bất lợi, điều kiện ánh sáng thấp, các góc độ camera đa dạng).

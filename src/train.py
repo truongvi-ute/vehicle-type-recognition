@@ -17,11 +17,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import random
 import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -53,6 +56,12 @@ from src.model import (  # noqa: E402
 PHASE1_EPOCHS = 5
 CHECKPOINT_DIR = "models"
 OUTPUT_DIR = "outputs"
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+AUGMENTED_STEM_PATTERN = re.compile(
+    r"(.+?)_"
+    r"(normal|rain|sun|night|gaussian_blur|motion_blur|unsharp_mask)_"
+    r"(orig|geo)_\d+$"
+)
 MODEL_NAME_MAP: Dict[str, str] = {
     "resnet50": "resnet50",
     "vit": "vit_base_patch16_224",
@@ -117,15 +126,48 @@ class EarlyStopping:
             self.early_stop = True
 
 
+def canonical_source_stem(path: Path) -> str:
+    match = AUGMENTED_STEM_PATTERN.match(path.stem)
+    return match.group(1) if match else path.stem
+
+
+def infer_class_balanced_counts(data_dir: str, class_names: List[str]) -> List[int]:
+    train_dir = Path(data_dir) / TRAIN_SPLIT
+    counts: List[int] = []
+    for class_name in class_names:
+        class_dir = train_dir / class_name
+        stems = {
+            canonical_source_stem(path)
+            for path in class_dir.rglob("*")
+            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        }
+        if not stems:
+            raise ValueError(f"Cannot infer CB-Focal count for empty class: {class_name}")
+        counts.append(len(stems))
+    return counts
+
+
 class ClassBalancedFocalLoss(nn.Module):
     """
     Class-Balanced Focal Loss hỗ trợ cả nhãn 1D (đánh giá) và nhãn 2D soft labels (MixUp/CutMix).
     """
-    def __init__(self, class_counts: List[int], beta: float = 0.999, gamma: float = 2.0, label_smoothing: float = 0.0):
+    def __init__(
+        self,
+        class_counts: List[int],
+        beta: float = 0.999,
+        gamma: float = 2.0,
+        label_smoothing: float = 0.0,
+        pair_indices: Optional[List[Tuple[int, int]]] = None,
+        pair_margin: float = 0.30,
+        pair_lambda: float = 0.0,
+    ):
         super().__init__()
         self.beta = beta
         self.gamma = gamma
         self.label_smoothing = label_smoothing
+        self.pair_indices = pair_indices
+        self.pair_margin = pair_margin
+        self.pair_lambda = pair_lambda
         
         # Tính toán trọng số Class-Balanced
         weights = []
@@ -153,12 +195,47 @@ class ClassBalancedFocalLoss(nn.Module):
         focal_term = ((1.0 - p) ** self.gamma) * log_p
         weighted_loss = - targets_one_hot * focal_term * self.weights
         
-        return weighted_loss.sum(dim=-1).mean()
+        loss = weighted_loss.sum(dim=-1).mean()
+
+        if self.pair_lambda > 0 and self.pair_indices is not None and targets.ndim == 1:
+            pair_terms = []
+            for first_idx, second_idx in self.pair_indices:
+                first_mask = targets == first_idx
+                second_mask = targets == second_idx
+
+                if first_mask.any():
+                    first_margin = logits[first_mask, first_idx] - logits[first_mask, second_idx]
+                    pair_terms.append(F.relu(self.pair_margin - first_margin))
+                if second_mask.any():
+                    second_margin = logits[second_mask, second_idx] - logits[second_mask, first_idx]
+                    pair_terms.append(F.relu(self.pair_margin - second_margin))
+
+            if pair_terms:
+                pair_loss = torch.cat(pair_terms).mean()
+                loss = loss + self.pair_lambda * pair_loss
+
+        return loss
 
 
-def build_phase1_optimizer(model: nn.Module, lr_head: float) -> torch.optim.AdamW:
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def build_phase1_optimizer(
+    model: nn.Module, lr_head: float
+) -> torch.optim.AdamW:
     head_params = [p for p in get_head_parameters(model) if p.requires_grad]
-    return torch.optim.AdamW(head_params, lr=lr_head, weight_decay=1e-4)
+    return torch.optim.AdamW(
+        head_params,
+        lr=lr_head,
+        weight_decay=1e-4,
+    )
 
 
 def build_phase2_optimizer(
@@ -266,6 +343,25 @@ def _metric_record(loss: float, accuracy: float) -> Dict[str, float]:
     }
 
 
+def save_last_checkpoint(
+    path: Path,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    epoch: int,
+    metrics: Dict[str, float],
+) -> None:
+    torch.save(
+        {
+            "epoch": epoch,
+            "arch": getattr(model, "_arch", "model"),
+            "state_dict": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "metrics": metrics,
+        },
+        path,
+    )
+
+
 def _load_best_if_available(
     model: nn.Module,
     full_model_name: str,
@@ -289,7 +385,20 @@ def train(
     lr_backbone: float = 1e-5,
     num_workers: int = 0,
     eval_traincopy_each_epoch: bool = False,
+    cb_beta: float = 0.999,
+    cb_gamma: float = 2.0,
+    label_smoothing: float = 0.1,
+    mixup_alpha: float = 0.0,
+    cutmix_alpha: float = 0.0,
+    pair_margin_classes: str = "car,truck",
+    pair_margin: float = 0.30,
+    pair_lambda: float = 0.0,
+    seed: int = 42,
+    resume: Optional[str] = None,
+    run_epochs: Optional[int] = None,
+    skip_test: bool = False,
 ) -> List[Dict[str, float]]:
+    set_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     full_model_name = MODEL_NAME_MAP[model_key]
 
@@ -303,6 +412,7 @@ def train(
     print(f"Primary validation      : {data_dir}/{PRIMARY_VALID_SPLIT}")
     print(f"Auxiliary validation    : {data_dir}/{AUX_VALID_SPLIT} (not primary)")
     print(f"Official test           : {data_dir}/{TEST_SPLIT}")
+    print(f"Seed / deterministic    : {seed} / True")
     print("=" * 72)
 
     train_loader, valid_unseen_loader, valid_traincopy_loader, test_loader, class_names = (
@@ -310,6 +420,8 @@ def train(
             data_dir=data_dir,
             batch_size=batch_size,
             num_workers=num_workers,
+            mixup_alpha=mixup_alpha,
+            cutmix_alpha=cutmix_alpha,
         )
     )
     print(f"Classes                 : {len(class_names)} {class_names}")
@@ -327,15 +439,56 @@ def train(
         pretrained=True,
         device=device,
     )
-    # So mau thu tu raw-cleaning/raw (alphabetical = thu tu ImageFolder):
-    # bicycle=1569, boat=8694, bus=3994, car=8366, helicopter=668,
-    # minibus=1472, motorcycle=4357, taxi=900, train=1650, truck=3677
-    class_counts = [1569, 8694, 3994, 8366, 668, 1472, 4357, 900, 1650, 3677]
+    class_counts = infer_class_balanced_counts(data_dir, class_names)
+    resume_payload = None
+    start_epoch = 1
+    if resume:
+        resume_payload = load_checkpoint(resume, model=model, optimizer=None, device=device)
+        start_epoch = int(resume_payload["epoch"]) + 1
+        if start_epoch > epochs:
+            raise ValueError(f"Resume epoch {start_epoch - 1} already reaches max epochs={epochs}")
+        print(f"Resume                 : {resume} (next epoch {start_epoch})")
+    pair_classes_list = []
+    pair_indices = None
+    if pair_lambda > 0:
+        for pair_str in pair_margin_classes.split(";"):
+            if not pair_str.strip():
+                continue
+            parsed_pair = tuple(
+                item.strip() for item in pair_str.split(",") if item.strip()
+            )
+            if len(parsed_pair) != 2:
+                raise ValueError(
+                    "Each pair in --pair_margin_classes must contain exactly two comma-separated classes"
+                )
+            invalid_pair_classes = [name for name in parsed_pair if name not in class_names]
+            if invalid_pair_classes:
+                raise ValueError(f"Invalid pair margin classes: {invalid_pair_classes}")
+            pair_classes_list.append(parsed_pair)
+        pair_indices = [(class_names.index(p[0]), class_names.index(p[1])) for p in pair_classes_list]
+
+    print(f"CB-Focal counts        : {dict(zip(class_names, class_counts))}")
+    print(f"CB-Focal beta/gamma    : {cb_beta} / {cb_gamma}")
+    print(f"Label smoothing        : {label_smoothing}")
+    print(f"Online MixUp/CutMix    : {mixup_alpha} / {cutmix_alpha}")
+    if pair_lambda > 0 and pair_classes_list:
+        pair_desc = ", ".join(f"{p[0]} <-> {p[1]}" for p in pair_classes_list)
+        print(
+            "Pair margin loss       : "
+            f"{pair_desc}, "
+            f"margin={pair_margin}, lambda={pair_lambda}"
+        )
+    else:
+        print("Pair margin loss       : disabled")
+
     criterion = ClassBalancedFocalLoss(
         class_counts=class_counts,
-        beta=0.999,
-        gamma=2.0,
-        label_smoothing=0.1
+        beta=cb_beta,
+        gamma=cb_gamma,
+        label_smoothing=label_smoothing,
+        pair_indices=pair_indices,
+        pair_margin=pair_margin,
+        pair_lambda=pair_lambda,
     ).to(device)
 
     checkpoint_dir = os.path.join(CHECKPOINT_DIR, model_key)
@@ -350,9 +503,13 @@ def train(
     optimizer: Optional[torch.optim.AdamW] = None
     scheduler: Optional[torch.optim.lr_scheduler.ReduceLROnPlateau] = None
 
-    for epoch in range(1, epochs + 1):
+    end_epoch = min(epochs, start_epoch + run_epochs - 1) if run_epochs else epochs
+    for epoch in range(start_epoch, end_epoch + 1):
         epoch_start = time.perf_counter()
-        desired_phase = "head_only" if epoch <= PHASE1_EPOCHS else "partial"
+        desired_phase = (
+            "head_only" if epoch <= PHASE1_EPOCHS
+            else "partial"
+        )
 
         if desired_phase != current_phase:
             current_phase = desired_phase
@@ -360,7 +517,9 @@ def train(
             optimizer = (
                 build_phase1_optimizer(model, lr_head)
                 if current_phase == "head_only"
-                else build_phase2_optimizer(model, lr_head, lr_backbone)
+                else build_phase2_optimizer(
+                    model, lr_head, lr_backbone
+                )
             )
             # Reset scheduler khi doi phase de tranh state cu anh huong
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -369,7 +528,6 @@ def train(
                 factor=0.5,
                 patience=3,
                 min_lr=1e-7,
-                verbose=False,
             )
             print(f"\nPhase changed to {current_phase}")
             model_summary(model)
@@ -440,7 +598,11 @@ def train(
             epoch=epoch,
             metrics=checkpoint_metrics,
         )
-        if stopper.early_stop:
+        save_last_checkpoint(
+            Path(checkpoint_dir) / f"{full_model_name}_last.pth",
+            model, optimizer, epoch, checkpoint_metrics
+        )
+        if epoch > PHASE1_EPOCHS and stopper.early_stop:
             print(f"\nStopped early at epoch {epoch}.")
             break
 
@@ -457,13 +619,16 @@ def train(
         device=device,
         split_name=PRIMARY_VALID_SPLIT,
     )
-    test_loss, test_acc = evaluate_loss_acc(
-        model=model,
-        loader=test_loader,
-        criterion=criterion,
-        device=device,
-        split_name=TEST_SPLIT,
-    )
+    if skip_test:
+        test_loss, test_acc = float("nan"), float("nan")
+    else:
+        test_loss, test_acc = evaluate_loss_acc(
+            model=model,
+            loader=test_loader,
+            criterion=criterion,
+            device=device,
+            split_name=TEST_SPLIT,
+        )
 
     final_metrics: Dict[str, object] = {
         "model": model_key,
@@ -471,8 +636,30 @@ def train(
         "checkpoint": checkpoint_path,
         "primary_metric_split": PRIMARY_VALID_SPLIT,
         "official_evaluation_split": TEST_SPLIT,
+        "hyperparameters": {
+            "max_epochs": epochs,
+            "patience": patience,
+            "batch_size": batch_size,
+            "optimizer": "AdamW",
+            "lr_head": lr_head,
+            "lr_backbone": lr_backbone,
+            "cb_beta": cb_beta,
+            "cb_gamma": cb_gamma,
+            "label_smoothing": label_smoothing,
+            "mixup_alpha": mixup_alpha,
+            "cutmix_alpha": cutmix_alpha,
+
+            "seed": seed,
+            "pair_margin_loss": {
+                "enabled": pair_lambda > 0,
+                "classes": [list(pair) for pair in pair_classes_list] if pair_classes_list else None,
+                "margin": pair_margin,
+                "lambda": pair_lambda,
+            },
+            "class_balanced_counts": dict(zip(class_names, class_counts)),
+        },
         PRIMARY_VALID_SPLIT: _metric_record(valid_unseen_loss, valid_unseen_acc),
-        TEST_SPLIT: _metric_record(test_loss, test_acc),
+        TEST_SPLIT: None if skip_test else _metric_record(test_loss, test_acc),
     }
 
     if valid_traincopy_loader is not None:
@@ -496,7 +683,8 @@ def train(
     print(f"Best valid_unseen_loss   : {stopper.best_loss:.6f}")
     print(f"History                  : {history_path}")
     print(f"Separated metrics        : {metrics_path}")
-    print(f"Test accuracy            : {test_acc * 100:.2f}%")
+    if not skip_test:
+        print(f"Test accuracy            : {test_acc * 100:.2f}%")
     return history
 
 
@@ -513,6 +701,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr_head", type=float, default=1e-3)
     parser.add_argument("--lr_backbone", type=float, default=1e-5)
     parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--cb_beta", type=float, default=0.999)
+    parser.add_argument("--cb_gamma", type=float, default=2.0)
+    parser.add_argument("--label_smoothing", type=float, default=0.1)
+    parser.add_argument("--mixup_alpha", type=float, default=0.0)
+    parser.add_argument("--cutmix_alpha", type=float, default=0.0)
+    parser.add_argument(
+        "--pair_margin_classes",
+        type=str,
+        default="car,truck",
+        help="Comma-separated class pair for optional confusion-aware margin loss.",
+    )
+    parser.add_argument(
+        "--pair_margin",
+        type=float,
+        default=0.30,
+        help="Required logit margin between the true class and paired confusing class.",
+    )
+    parser.add_argument(
+        "--pair_lambda",
+        type=float,
+        default=0.0,
+        help="Weight for pairwise confusion-aware margin loss. Use 0 to disable.",
+    )
+
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--run_epochs", type=int, default=None)
+    parser.add_argument("--skip_test", action="store_true")
     parser.add_argument(
         "--eval_traincopy_each_epoch",
         action="store_true",
@@ -543,4 +759,17 @@ if __name__ == "__main__":
         lr_backbone=args.lr_backbone,
         num_workers=args.num_workers,
         eval_traincopy_each_epoch=args.eval_traincopy_each_epoch,
+        cb_beta=args.cb_beta,
+        cb_gamma=args.cb_gamma,
+        label_smoothing=args.label_smoothing,
+        mixup_alpha=args.mixup_alpha,
+        cutmix_alpha=args.cutmix_alpha,
+        pair_margin_classes=args.pair_margin_classes,
+        pair_margin=args.pair_margin,
+        pair_lambda=args.pair_lambda,
+
+        seed=args.seed,
+        resume=args.resume,
+        run_epochs=args.run_epochs,
+        skip_test=args.skip_test,
     )

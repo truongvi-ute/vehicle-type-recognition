@@ -1,0 +1,151 @@
+6: Mã lớp học phần: 252DIPR430685_07CLC
+35: 3Tiền xử lý và tăng cường dữ liệu8
+36: 3.1Quy trình tiền xử lý8
+39: 3.4Phương pháp tăng cường dữ liệu V110
+40: 3.5Phương pháp tăng cường dữ liệu V211
+90: Hình 3.4 Các bucket môi trường trong phương pháp tăng cường dữ liệu V1.11
+91: Hình 3.5 Các bucket chất lượng ảnh trong phương pháp tăng cường dữ liệu V2.13
+96: Hình 5.1 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v1.24
+97: Hình 5.2 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v2.25
+98: Hình 5.3 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v1.25
+99: Hình 5.4 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v2.25
+100: Hình 5.5 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v1.26
+101: Hình 5.6 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v2.26
+102: Hình 5.7 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v1.27
+103: Hình 5.8 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v2.27
+104: Hình 5.9 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v1.28
+105: Hình 5.10 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v2.28
+106: Hình 5.11 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v1.29
+107: Hình 5.12 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v2.29
+108: Hình 5.13 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v1.30
+109: Hình 5.14 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v2.30
+110: Hình 5.15 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v1.30
+111: Hình 5.16 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v2.31
+112: Hình 5.17 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v1.32
+113: Hình 5.18 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v2.32
+114: Hình 5.19 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v1.33
+115: Hình 5.20 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v2.33
+116: Hình 5.21 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v1.34
+117: Hình 5.22 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v2.34
+118: Hình 5.23 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v1.35
+119: Hình 5.24 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v2.35
+120: Hình 5.25 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v1.36
+121: Hình 5.26 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v2.36
+122: Hình 5.27 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v1.37
+123: Hình 5.28 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v2.37
+124: Hình 5.29 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v1.38
+125: Hình 5.30 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v2.38
+126: Hình 5.31 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v1.38
+127: Hình 5.32 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v2.39
+128: Hình 5.33 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v1.40
+129: Hình 5.34 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v2.40
+130: Hình 5.35 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v1.41
+131: Hình 5.36 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v2.41
+132: Hình 5.37 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v1.42
+133: Hình 5.38 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v2.42
+134: Hình 5.39 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v1.42
+135: Hình 5.40 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v2.43
+136: Hình 5.41 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v1.43
+137: Hình 5.42 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v2.44
+138: Hình 5.43 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v1.44
+139: Hình 5.44 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v2.45
+140: Hình 5.45 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v1.45
+141: Hình 5.46 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v2.46
+142: Hình 5.47 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v1.46
+143: Hình 5.48 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v2.46
+233: Tiền xử lý và tăng cường dữ liệu
+235: Quy trình tiền xử lý
+265: Phương pháp tăng cường dữ liệu V1
+268: Phân nhóm (Bucket V1)
+273: Ảnh đầu ra từ luồng tiền xử lý cơ bản, bảo toàn nguyên trạng, không áp dụng thêm hiệu ứng môi trường.
+283: Hình 3.4 Các bucket môi trường trong phương pháp tăng cường dữ liệu V1.
+284: Phương pháp tăng cường dữ liệu V2
+287: Phân nhóm (Bucket V2)
+292: Ảnh đầu ra đạt chuẩn sau quá trình tiền xử lý định cỡ và đệm viền (resize-padding), không áp dụng thêm nhiễu.
+302: Hình 3.5 Các bucket chất lượng ảnh trong phương pháp tăng cường dữ liệu V2.
+324: raw_v1
+328: raw_v2
+332: cleaned_v1
+335: Đánh giá hiệu quả của thao tác làm sạch dữ liệu khi kết hợp cùng chiến lược tăng cường môi trường V1.
+336: cleaned_v2
+339: Đánh giá hiệu quả của thao tác làm sạch dữ liệu khi kết hợp cùng chiến lược can thiệp chất lượng ảnh V2.
+355: Thành phần
+380: Thành phần
+404: Thành phần
+429: Phản ánh mức độ tin cậy của mô hình: Trong số các mẫu được hệ thống dự đoán là nhãn A, có bao nhiêu phần trăm thực sự là nhãn A.
+431: Thể hiện năng lực "không bỏ lọt" đối tượng: Trong tổng số các mẫu thực tế là nhãn A, hệ thống tìm ra được bao nhiêu phần trăm.
+447: raw_v1
+454: raw_v2
+461: cleaned_v1
+468: cleaned_v2
+477: Hình 5.1 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v1.
+478: Hình 5.2 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu raw_v2.
+479: Hình 5.3 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v1.
+480: Hình 5.4 Biểu đồ hàm mất mát của ResNet50 trên bộ dữ liệu cleaned_v2.
+483: Hình 5.5 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v1.
+484: Hình 5.6 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu raw_v2.
+485: Hình 5.7 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v1.
+486: Hình 5.8 Biểu đồ độ chính xác validation của ResNet50 trên bộ dữ liệu cleaned_v2.
+489: Hình 5.9 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v1.
+490: Hình 5.10 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu raw_v2.
+491: Hình 5.11 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v1.
+492: Hình 5.12 Ma trận nhầm lẫn của ResNet50 trên bộ dữ liệu cleaned_v2.
+495: Hình 5.13 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v1.
+496: Hình 5.14 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu raw_v2.
+497: Hình 5.15 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v1.
+498: Hình 5.16 Biểu đồ Precision, Recall và F1-score theo từng lớp của ResNet50 trên bộ dữ liệu cleaned_v2.
+508: raw_v1
+515: raw_v2
+522: cleaned_v1
+529: cleaned_v2
+538: Hình 5.17 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v1.
+539: Hình 5.18 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu raw_v2.
+540: Hình 5.19 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v1.
+541: Hình 5.20 Biểu đồ hàm mất mát của YOLO Classification trên bộ dữ liệu cleaned_v2.
+544: Hình 5.21 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v1.
+545: Hình 5.22 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu raw_v2.
+546: Hình 5.23 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v1.
+547: Hình 5.24 Biểu đồ độ chính xác validation của YOLO Classification trên bộ dữ liệu cleaned_v2.
+550: Hình 5.25 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v1.
+551: Hình 5.26 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu raw_v2.
+552: Hình 5.27 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v1.
+553: Hình 5.28 Ma trận nhầm lẫn của YOLO Classification trên bộ dữ liệu cleaned_v2.
+556: Hình 5.29 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v1.
+557: Hình 5.30 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu raw_v2.
+558: Hình 5.31 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v1.
+559: Hình 5.32 Biểu đồ Precision, Recall và F1-score theo từng lớp của YOLO Classification trên bộ dữ liệu cleaned_v2.
+570: raw_v1
+577: raw_v2
+584: cleaned_v1
+591: cleaned_v2
+600: Hình 5.33 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v1.
+601: Hình 5.34 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu raw_v2.
+602: Hình 5.35 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v1.
+603: Hình 5.36 Biểu đồ hàm mất mát của Vision Transformer trên bộ dữ liệu cleaned_v2.
+606: Hình 5.37 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v1.
+607: Hình 5.38 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu raw_v2.
+608: Hình 5.39 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v1.
+609: Hình 5.40 Biểu đồ độ chính xác validation của Vision Transformer trên bộ dữ liệu cleaned_v2.
+612: Hình 5.41 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v1.
+613: Hình 5.42 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu raw_v2.
+614: Hình 5.43 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v1.
+615: Hình 5.44 Ma trận nhầm lẫn của Vision Transformer trên bộ dữ liệu cleaned_v2.
+618: Hình 5.45 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v1.
+619: Hình 5.46 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu raw_v2.
+620: Hình 5.47 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v1.
+621: Hình 5.48 Biểu đồ Precision, Recall và F1-score theo từng lớp của Vision Transformer trên bộ dữ liệu cleaned_v2.
+630: raw_v1
+635: raw_v2
+640: cleaned_v1
+645: cleaned_v2
+650: raw_v1
+655: raw_v2
+660: cleaned_v1
+665: cleaned_v2
+670: raw_v1
+675: raw_v2
+680: cleaned_v1
+685: cleaned_v2
+703: Dễ nhầm với bus khi thiếu chi tiết phần thùng xe.
+715: Ưu tiên độ chính xác cao nhất: Kiến trúc Vision Transformer (cleaned_v2) là lựa chọn hàng đầu với Test Accuracy 94,54%.
+725: Chuẩn hóa quy trình triển khai: Tối ưu hóa mô hình bằng ONNX/TensorRT và đo đạc hiệu năng thực tế trên các nền tảng phần cứng khác nhau.

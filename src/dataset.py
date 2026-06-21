@@ -169,13 +169,15 @@ def create_dataloaders(
         _assert_same_classes(train_ds, valid_traincopy_ds, AUX_VALID_SPLIT)
 
     loader_args = _loader_kwargs(num_workers, pin_memory, prefetch_factor)
-    train_collate_fn = _build_mixup_collate_fn(
-        get_mixup_cutmix(
-            num_classes=len(train_ds.classes),
-            cutmix_alpha=cutmix_alpha,
-            mixup_alpha=mixup_alpha,
+    train_collate_fn = None
+    if mixup_alpha > 0 or cutmix_alpha > 0:
+        train_collate_fn = _build_mixup_collate_fn(
+            get_mixup_cutmix(
+                num_classes=len(train_ds.classes),
+                cutmix_alpha=cutmix_alpha,
+                mixup_alpha=mixup_alpha,
+            )
         )
-    )
 
     train_loader = DataLoader(
         train_ds,

@@ -55,7 +55,7 @@ def set_full_image_transform(model, imgsz: int) -> None:
     model.model.transforms = transforms.Compose(
         [
             transforms.Resize(
-                (imgsz, imgsz),
+                imgsz,
                 interpolation=transforms.InterpolationMode.BILINEAR,
                 antialias=True,
             ),

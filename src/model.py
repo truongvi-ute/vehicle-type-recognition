@@ -90,23 +90,28 @@ class MultiScaleResNet50(nn.Module):
         
         self._arch = "resnet50"
         self._head_name = "fc"
+        self._feature_dim = 1024 + 2048
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
         x = self.layer1(x)
         x = self.layer2(x)
-        f3 = self.layer3(x)   # [B, 1024, 14, 14]
-        
-        f4 = self.layer4(f3)   # [B, 2048, 7, 7]
-        
-        p3 = torch.flatten(self.avgpool(f3), 1)  # [B, 1024]
-        p4 = torch.flatten(self.avgpool(f4), 1)  # [B, 2048]
-        
-        fused = torch.cat([p3, p4], dim=1)  # [B, 3072]
-        return self.fc(fused)
+        f3 = self.layer3(x)
+        f4 = self.layer4(f3)
+        p3 = torch.flatten(self.avgpool(f3), 1)
+        p4 = torch.flatten(self.avgpool(f4), 1)
+        return torch.cat([p3, p4], dim=1)
+
+    def forward_with_features(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        features = self.forward_features(x)
+        return self.fc(features), features
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        logits, _ = self.forward_with_features(x)
+        return logits
 
 
 class MultiLayerCLSViT(nn.Module):
@@ -123,6 +128,7 @@ class MultiLayerCLSViT(nn.Module):
         self.fc = nn.Linear(768 * num_layers, num_classes)
         self.tokens: List[torch.Tensor] = []
         self.num_layers = num_layers
+        self._feature_dim = 768 * num_layers
         
         # Đăng ký forward hook trên các encoder blocks cuối cùng
         total = len(self.vit.encoder.layers)
@@ -139,7 +145,7 @@ class MultiLayerCLSViT(nn.Module):
             self.tokens.append(output[:, 0])
         return h_fn
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, x: torch.Tensor) -> torch.Tensor:
         self.tokens.clear()
         _ = self.vit(x)
         if len(self.tokens) != self.num_layers:
@@ -148,8 +154,15 @@ class MultiLayerCLSViT(nn.Module):
                 f"got {len(self.tokens)}. Hooks may have been lost after "
                 "checkpoint save/load. Rebuild the model with build_model()."
             )
-        fused = torch.cat(self.tokens, dim=1)  # [B, 2304]
-        return self.fc(fused)
+        return torch.cat(self.tokens, dim=1)
+
+    def forward_with_features(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        features = self.forward_features(x)
+        return self.fc(features), features
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        logits, _ = self.forward_with_features(x)
+        return logits
 
 
 # ─────────────────────────────────────────────────────────────────────────────
