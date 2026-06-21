@@ -197,11 +197,13 @@ class ClassBalancedFocalLoss(nn.Module):
         
         loss = weighted_loss.sum(dim=-1).mean()
 
-        if self.pair_lambda > 0 and self.pair_indices is not None and targets.ndim == 1:
+        if self.pair_lambda > 0 and self.pair_indices is not None:
+            # Lấy nhãn cứng (hard labels) từ nhãn mềm (nếu ndim == 2 do MixUp/CutMix)
+            hard_targets = targets if targets.ndim == 1 else targets.argmax(dim=-1)
             pair_terms = []
             for first_idx, second_idx in self.pair_indices:
-                first_mask = targets == first_idx
-                second_mask = targets == second_idx
+                first_mask = hard_targets == first_idx
+                second_mask = hard_targets == second_idx
 
                 if first_mask.any():
                     first_margin = logits[first_mask, first_idx] - logits[first_mask, second_idx]
